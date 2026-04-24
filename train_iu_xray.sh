@@ -2,7 +2,7 @@
 
 #  --- CHANGE EXP PARAMS HERE, ONLY THIS FILE! --- 
 WANDB_ENTITY="phucga15062005" # team wandb  --> NOT CHANGE!
-WANDB_PROJECT="A3Net_Research_And_Develop" # Project wandb --> NOT CHANGE!
+WANDB_PROJECT="NCKH_R2Gen" # Project wandb --> NOT CHANGE!
 # Lấy WANDB_NAME từ environment (nếu được set trên Kaggle), ngược lại dùng tên mặc định
 WANDB_NAME="${WANDB_NAME:-team-scratch-WarmupCosine-SGD-$(date '+%Y%m%d-%H%M')}"
 
