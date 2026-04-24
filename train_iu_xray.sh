@@ -13,8 +13,8 @@ RESUME_PATH="${RESUME_PATH:-}"
 DATASET_PATH="${DATASET_PATH:-data/iu_xray}"
 
 python main_train.py\
-    --image_dir DATASET_PATH/iu_xray/images/ \
-    --ann_path DATASET_PATH/iu_xray/annotation.json \
+    --image_dir "$DATASET_PATH/iu_xray/images/" \
+    --ann_path "$DATASET_PATH/iu_xray/annotation.json" \
     --dataset_name iu_xray \
     --max_seq_length 60 \
     --threshold 3 \
