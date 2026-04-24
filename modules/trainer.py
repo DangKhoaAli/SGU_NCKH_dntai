@@ -239,7 +239,7 @@ class Trainer(BaseTrainer):
 
         self.logger.info('[{}/{}] Start to train in the training set.'.format(epoch, self.epochs))
         train_loss = 0
-        train_token_sum = 0.0
+        train_nll_sum = 0.0
         train_token_count = 0.0
 
         self.model.train()
