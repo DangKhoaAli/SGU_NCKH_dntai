@@ -12,6 +12,9 @@ RESUME_PATH="${RESUME_PATH:-}"
 # đọc DATASET_PATH từ environment (set trên kaggle), nếu không có thì dùng local path
 DATASET_PATH="${DATASET_PATH:-data/iu_xray}"
 
+# Giam memory fragmentation tren CUDA
+export PYTORCH_ALLOC_CONF=expandable_segments:True
+
 python main_train.py\
     --image_dir "$DATASET_PATH/iu_xray/images/" \
     --ann_path "$DATASET_PATH/iu_xray/annotation.json" \
@@ -20,6 +23,8 @@ python main_train.py\
     --threshold 3 \
     --epochs 100 \
     --batch_size 16 \
+    --accum_steps 1 \
+    --use_amp \
     --lr_ve 1e-4 \
     --lr_ed 5e-4 \
     --step_size 10 \

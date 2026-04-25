@@ -5,6 +5,7 @@ from abc import abstractmethod
 from modules.loss import compute_nll_sum_and_tokens
 
 import torch
+from torch.cuda.amp import GradScaler, autocast
 from numpy import inf
 
 # import wandb and handle exception
@@ -52,6 +53,12 @@ class BaseTrainer(object):
         self.metric_ftns = metric_ftns
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
+
+        # AMP scaler: chỉ kích hoạt khi --use_amp được truyền vào
+        self.use_amp = getattr(args, 'use_amp', False)
+        self.scaler = GradScaler() if self.use_amp else None
+        if self.use_amp:
+            self.logger.info("AMP (Automatic Mixed Precision) ENABLED - VRAM usage ~halved")
 
         self.epochs = self.args.epochs
         self.save_period = self.args.save_period
@@ -241,18 +248,33 @@ class Trainer(BaseTrainer):
         train_loss = 0
         train_nll_sum = 0.0
         train_token_count = 0.0
+        accum_steps = getattr(self.args, 'accum_steps', 1)  # gradient accumulation
 
         self.model.train()
+        self.optimizer.zero_grad()  # reset gradient trước epoch
         for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.train_dataloader):
 
             images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(self.device), \
                                                  reports_masks.to(self.device)
-            output = self.model(images, reports_ids, mode='train')
-            loss = self.criterion(output, reports_ids, reports_masks)
 
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            # --- Forward (with AMP nếu được bật) ---
+            with autocast(enabled=self.use_amp):
+                output = self.model(images, reports_ids, mode='train')
+                loss = self.criterion(output, reports_ids, reports_masks)
+
+            # --- Backward (gradient accumulation) ---
+            if self.use_amp:
+                self.scaler.scale(loss / accum_steps).backward()
+            else:
+                (loss / accum_steps).backward()
+
+            if (batch_idx + 1) % accum_steps == 0 or (batch_idx + 1) == len(self.train_dataloader):
+                if self.use_amp:
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
+                else:
+                    self.optimizer.step()
+                self.optimizer.zero_grad()
 
             train_loss += loss.item()
 

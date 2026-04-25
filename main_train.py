@@ -51,6 +51,8 @@ def parse_agrs():
     parser.add_argument('--threshold', type=int, default=3, help='the cut off frequency for the words.')
     parser.add_argument('--num_workers', type=int, default=2, help='the number of workers for dataloader.')
     parser.add_argument('--batch_size', type=int, default=16, help='the number of samples for a batch')
+    parser.add_argument('--accum_steps', type=int, default=1, help='gradient accumulation steps (simulate larger batch).')
+    parser.add_argument('--use_amp', action='store_true', help='enable Automatic Mixed Precision (FP16) to save VRAM.')
 
     # Model settings (for visual extractor)
     parser.add_argument('--visual_extractor', type=str, default='resnet101', help='the visual extractor to be used.')
