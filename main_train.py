@@ -126,7 +126,7 @@ def parse_agrs():
 
 def main():
     # parse arguments
-    device = torch.device('cuda:1' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     args = parse_agrs()
     os.makedirs(args.save_dir, exist_ok=True)
     dump_json(os.path.join(args.save_dir, 'run_config.json'), vars(args))
