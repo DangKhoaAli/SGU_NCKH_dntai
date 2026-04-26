@@ -9,26 +9,26 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from .swin_encoder import SwinEncoder
 from .att_model import pack_wrapper, AttModel
 
 
 def clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for _ in range(N)])
-
+# -> code này tạo N bản sao cho Encoder Layer và Decoder layer
 
 def subsequent_mask(size):
     attn_shape = (1, size, size)
     subsequent_mask = np.triu(np.ones(attn_shape), k=1).astype('uint8')
     return torch.from_numpy(subsequent_mask) == 0
-
+# -> đay là mask cho decoder lúc sinh từ để không nhìn trước tuongw lai [đảm bảo không cheat (không nhìn ground truth phía sau)]
 
 def attention(query, key, value, mask=None, dropout=None):
-    d_k = query.size(-1)
-    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
+    d_k = query.size(-1)  # lâys chièu (d_k) của key
+    scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)  # nhân query với key chuyển vị rồi chia cho căn bậc 2 của d_k
     if mask is not None:
-        scores = scores.masked_fill(mask == 0, float('-inf'))
-    p_attn = F.softmax(scores, dim=-1)
+        scores = scores.masked_fill(mask == 0, float('-inf')) # nếu mask == 0 thì gán bằng -vô cực
+    p_attn = F.softmax(scores, dim=-1)  # tính softmax trên chiều cuối cùng
     if dropout is not None:
         p_attn = dropout(p_attn)
     return torch.matmul(p_attn, value), p_attn
@@ -39,11 +39,16 @@ def memory_querying_responding(query, key, value, mask=None, dropout=None, topk=
     scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
         scores = scores.masked_fill(mask == 0, float('-inf'))
-    selected_scores, idx = scores.topk(topk)
-    dummy_value = value.unsqueeze(2).expand(idx.size(0), idx.size(1), idx.size(2), value.size(-2), value.size(-1))
-    dummy_idx = idx.unsqueeze(-1).expand(idx.size(0), idx.size(1), idx.size(2), idx.size(3), value.size(-1))
-    selected_value = torch.gather(dummy_value, 3, dummy_idx)
-    p_attn = F.softmax(selected_scores, dim=-1)
+    selected_scores, idx = scores.topk(topk)  # lấy topk điểm
+    dummy_value = value.unsqueeze(2).expand(idx.size(0), idx.size(1), idx.size(2), value.size(-2), value.size(-1))  # thêm chiều mới vào value
+    dummy_idx = idx.unsqueeze(-1).expand(idx.size(0), idx.size(1), idx.size(2), idx.size(3), value.size(-1))  # thêm chiều mới vào index
+    """query: [B, heads, T, d]
+    key:   [B, heads, M, d]
+
+    → scores: [B, heads, T, M]"""
+    
+    selected_value = torch.gather(dummy_value, 3, dummy_idx)  # lấy các giá trị tương ứng với index ơ→ chỉ quan tâm 32 patches liên quan nhất]
+    p_attn = F.softmax(selected_scores, dim=-1)  # tính softmax trên chiều cuối cùng
     if dropout is not None:
         p_attn = dropout(p_attn)
     return torch.matmul(p_attn.unsqueeze(3), selected_value).squeeze(3), p_attn
@@ -52,16 +57,30 @@ def memory_querying_responding(query, key, value, mask=None, dropout=None, topk=
 class Transformer(nn.Module):
     def __init__(self, encoder, decoder, src_embed, tgt_embed, cmn):
         super(Transformer, self).__init__()
-        self.encoder = encoder
-        self.decoder = decoder
-        self.src_embed = src_embed
-        self.tgt_embed = tgt_embed
-        self.cmn = cmn
+        self.encoder = encoder # xử lí ảnh
+        self.decoder = decoder # sinh text
+        self.src_embed = src_embed # nhúng ảnh (word embedding)
+        self.tgt_embed = tgt_embed # nhúng từ (word embedding)
+        self.cmn = cmn #memory modules
 
     def forward(self, src, tgt, src_mask, tgt_mask, memory_matrix):
         return self.decode(self.encode(src, src_mask), src_mask, tgt, tgt_mask, memory_matrix=memory_matrix)
 
-    def encode(self, src, src_mask):
+    '''
+    Src: batch đầu tiên đi vào
+    Tgt: batch đầu tiên đi vào
+    Src_mask: mask của batch đầu tiên đi vào
+    Tgt_mask: mask của batch đầu tiên đi vào
+    Memory_matrix: batch đầu tiên đi vào
+    '''
+    '''
+    input_img : [B, 3, 224, 224]
+    mục đích :src → encode → memory
+              tgt → decode(memory)    
+    '''
+
+
+    def encode(self, src, src_mask): # src:[B,M,dim], src_mask:[B,M]
         return self.encoder(self.src_embed(src), src_mask)
 
     def decode(self, memory, src_mask, tgt, tgt_mask, past=None, memory_matrix=None):
@@ -81,7 +100,14 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.layers = clones(layer, N)
         self.norm = LayerNorm(layer.size)
-
+    '''
+    lấy src_embed đi vào
+    src :[B,M,dim]
+    src_mask:[B,M]
+    '''
+    '''
+    output: [B,M,dim] -> visyal features
+    '''
     def forward(self, x, mask):
         for layer in self.layers:
             x = layer(x, mask)
@@ -309,7 +335,12 @@ class BaseCMN(AttModel):
         ff = PositionwiseFeedForward(self.d_model, self.d_ff, self.dropout)
         position = PositionalEncoding(self.d_model, self.dropout)
         model = Transformer(
-            Encoder(EncoderLayer(self.d_model, c(attn), c(ff), self.dropout), self.num_layers),
+            # Encoder(EncoderLayer(self.d_model, c(attn), c(ff), self.dropout), self.num_layers),
+            SwinEncoder(
+        d_model=self.d_model,
+        num_layers=self.num_layers,
+        num_heads=self.num_heads
+    ),
             Decoder(DecoderLayer(self.d_model, c(attn), c(attn), c(ff), self.dropout), self.num_layers),
             nn.Sequential(c(position)),
             nn.Sequential(Embeddings(self.d_model, tgt_vocab), c(position)), cmn)
@@ -362,12 +393,11 @@ class BaseCMN(AttModel):
 
         att_masks = att_masks.unsqueeze(-2)
         if seq is not None:
-            seq = seq[:, :-1]
-            seq_mask = (seq.data > 0)
+            seq = seq[:, :-1] # cắt đuôi. 
+            seq_mask = (seq.data > 0) # mask của chuỗi Gt, nếu >0 thì là token thật
             seq_mask[:, 0] += True
-
             seq_mask = seq_mask.unsqueeze(-2)
-            seq_mask = seq_mask & subsequent_mask(seq.size(-1)).to(seq_mask)
+            seq_mask = seq_mask & subsequent_mask(seq.size(-1)).to(seq_mask) # tạo mặt nạ tam giác dưới, để nhìn từ tiếp theo trong chuỗi Gt
         else:
             seq_mask = None
 
