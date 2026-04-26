@@ -30,6 +30,7 @@ python main_train.py\
     --step_size 10 \
     --gamma 0.8 \
     --num_layers 3 \
+    --early_stop 50 \
     --topk 32 \
     --cmm_size 2048 \
     --cmm_dim 512 \

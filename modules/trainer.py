@@ -5,7 +5,7 @@ from abc import abstractmethod
 from modules.loss import compute_nll_sum_and_tokens
 
 import torch
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast
 from numpy import inf
 
 # import wandb and handle exception
@@ -161,6 +161,27 @@ class BaseTrainer(object):
             wandb.finish()  
         # ---------------------------------------------------------------------------
 
+    def _print_best_to_file(self):
+        crt_time = time.asctime(time.localtime(time.time()))
+        self.best_recorder['val']['time'] = crt_time
+        self.best_recorder['test']['time'] = crt_time
+        self.best_recorder['val']['seed'] = self.args.seed
+        self.best_recorder['test']['seed'] = self.args.seed
+        self.best_recorder['val']['best_model_from'] = 'val'
+        self.best_recorder['test']['best_model_from'] = 'test'
+
+        if not os.path.exists(self.args.record_dir):
+            os.makedirs(self.args.record_dir)
+        record_path = os.path.join(self.args.record_dir, self.args.dataset_name+'.csv')
+        if not os.path.exists(record_path):
+            record_table = pd.DataFrame()
+        else:
+            record_table = pd.read_csv(record_path)
+
+        record_table = pd.concat([record_table, pd.DataFrame([self.best_recorder['val']]), pd.DataFrame([self.best_recorder['test']])] ,ignore_index=True)
+        
+        record_table.to_csv(record_path, index=False)
+
     def _record_best(self, log):
         improved_val = (self.mnt_mode == 'min' and log[self.mnt_metric] <= self.best_recorder['val'][
             self.mnt_metric]) or \
@@ -258,7 +279,7 @@ class Trainer(BaseTrainer):
                                                  reports_masks.to(self.device)
 
             # --- Forward (with AMP nếu được bật) ---
-            with autocast(enabled=self.use_amp):
+            with autocast('cuda', enabled=self.use_amp):
                 output = self.model(images, reports_ids, mode='train')
                 loss = self.criterion(output, reports_ids, reports_masks)
 
