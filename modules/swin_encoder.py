@@ -37,9 +37,15 @@ class SwinBlock(nn.Module):
     def forward(self, x, mask=None):
         # x shape: [B, N, C]
         B, N, C = x.shape
-        H = W = int(N**0.5)
+        if N == 98:  # IU X-ray (2 images concatenated)
+            H, W = 7, 14
+        else:
+            H = W = int(N**0.5)
+
+        if H * W != N:
+            raise RuntimeError(f"Số lượng patches {N} không khớp với Grid {H}x{W}. Hãy kiểm tra lại visual_extractor.")
+
         shortcut = x
-        
         x = self.norm1(x)
         x = x.view(B, H, W, C)
 
