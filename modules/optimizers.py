@@ -2,6 +2,24 @@ import torch
 from torch import optim
 
 
+def _optimizer_kwargs(args):
+    optim_name = args.optim.lower()
+    if optim_name in ('adam', 'adamw'):
+        return {
+            'betas': args.adam_betas,
+            'eps': args.adam_eps,
+            'weight_decay': args.weight_decay,
+            'amsgrad': args.amsgrad
+        }
+    if optim_name == 'sgd':
+        return {
+            'momentum': args.momentum,
+            'weight_decay': args.weight_decay,
+            'nesterov': args.nesterov
+        }
+    return {'weight_decay': args.weight_decay}
+
+
 def build_optimizer(args, model):
     ve_params = list(map(id, model.visual_extractor.parameters()))
     ed_params = filter(lambda x: id(x) not in ve_params and x.requires_grad, model.parameters())
@@ -9,17 +27,44 @@ def build_optimizer(args, model):
     optimizer = getattr(torch.optim, args.optim)(
         [{'params': trainable_ve_params, 'lr': args.lr_ve},
          {'params': ed_params, 'lr': args.lr_ed}],
-        betas=args.adam_betas,
-        eps=args.adam_eps,
-        weight_decay=args.weight_decay,
-        amsgrad=args.amsgrad
+        **_optimizer_kwargs(args)
     )
     return optimizer
 
 
 def build_lr_scheduler(args, optimizer):
-    lr_scheduler = getattr(torch.optim.lr_scheduler, args.lr_scheduler)(optimizer, args.step_size, args.gamma)
-    return lr_scheduler
+    scheduler_name = args.lr_scheduler.lower()
+
+    if scheduler_name == 'steplr':
+        return optim.lr_scheduler.StepLR(optimizer, step_size=args.step_size, gamma=args.gamma)
+    if scheduler_name == 'cosineannealinglr':
+        return optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=args.min_lr)
+    if scheduler_name == 'exponentiallr':
+        return optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.gamma)
+    if scheduler_name in ('warmupcosine', 'linearwarmupcosineannealinglr'):
+        warmup_epochs = max(args.warmup_epochs, 0)
+        cosine_epochs = max(args.epochs - warmup_epochs, 1)
+
+        if warmup_epochs == 0:
+            return optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=cosine_epochs, eta_min=args.min_lr)
+
+        warmup = optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=args.warmup_start_factor,
+            total_iters=warmup_epochs
+        )
+        cosine = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=cosine_epochs,
+            eta_min=args.min_lr
+        )
+        return optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup, cosine],
+            milestones=[warmup_epochs]
+        )
+
+    raise ValueError(f'Unsupported lr_scheduler: {args.lr_scheduler}')
 
 
 def set_lr(optimizer, lr):

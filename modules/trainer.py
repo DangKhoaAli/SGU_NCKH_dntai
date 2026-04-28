@@ -251,6 +251,8 @@ class BaseTrainer(object):
         self.mnt_best = checkpoint['monitor_best']
         self.model.load_state_dict(checkpoint['state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
+        if self.lr_scheduler and checkpoint.get('lr_scheduler') is not None:
+            self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
 
         self.logger.info("Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch))
 

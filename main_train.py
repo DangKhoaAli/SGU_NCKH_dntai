@@ -108,6 +108,8 @@ def parse_agrs():
     parser.add_argument('--adam_betas', type=tuple, default=(0.9, 0.98), help='the weight decay.')
     parser.add_argument('--adam_eps', type=float, default=1e-9, help='the weight decay.')
     parser.add_argument('--amsgrad', type=bool, default=True, help='.')
+    parser.add_argument('--momentum', type=float, default=0.9, help='the momentum for SGD.')
+    parser.add_argument('--nesterov', action='store_true', help='enable Nesterov momentum for SGD.')
     parser.add_argument('--noamopt_warmup', type=int, default=5000, help='.')
     parser.add_argument('--noamopt_factor', type=int, default=1, help='.')
 
@@ -115,6 +117,9 @@ def parse_agrs():
     parser.add_argument('--lr_scheduler', type=str, default='StepLR', help='the type of the learning rate scheduler.')
     parser.add_argument('--step_size', type=int, default=50, help='the step size of the learning rate scheduler.')
     parser.add_argument('--gamma', type=float, default=0.1, help='the gamma of the learning rate scheduler.')
+    parser.add_argument('--warmup_epochs', type=int, default=0, help='warmup epochs for WarmupCosine scheduler.')
+    parser.add_argument('--warmup_start_factor', type=float, default=0.1, help='initial LR scale during warmup.')
+    parser.add_argument('--min_lr', type=float, default=1e-6, help='minimum LR for cosine scheduler.')
 
     # Resume & wandb
     parser.add_argument('--seed', type=int, default=2704, help='.')
