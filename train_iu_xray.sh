@@ -23,6 +23,8 @@ python main_train.py\
     --threshold 3 \
     --epochs 100 \
     --scst_start_epoch 20 \
+    --scst_reward cider \
+    --rl_weight 0.99 \
     --batch_size 16 \
     --accum_steps 1 \
     --use_amp \

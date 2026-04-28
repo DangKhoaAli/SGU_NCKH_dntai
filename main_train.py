@@ -98,6 +98,8 @@ def parse_agrs():
     parser.add_argument('--monitor_metric', type=str, default='BLEU_4', help='the metric to be monitored.')
     parser.add_argument('--early_stop', type=int, default=50, help='the patience of training.')
     parser.add_argument('--scst_start_epoch', type=int, default=20, help='the epoch to start SCST training.')
+    parser.add_argument('--scst_reward', type=str, default='cider', choices=['cider', 'bleu'], help='the metric to use for SCST reward.')
+    parser.add_argument('--rl_weight', type=float, default=0.99, help='the weight of the SCST loss (vs CE loss).')
 
     # Optimization
     parser.add_argument('--optim', type=str, default='Adam', help='the type of the optimizer.')

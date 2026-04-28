@@ -289,12 +289,20 @@ class Trainer(BaseTrainer):
                     sample_res, sample_logprobs = self.model(images, mode='sample', update_opts={'sample_method': 'sample'})
                     
                     from modules.reward import get_self_critical_reward
-                    reward, _ = get_self_critical_reward(greedy_res, sample_res, reports_ids, self.model.tokenizer, reward_type='bleu')
+                    reward_type = getattr(self.args, 'scst_reward', 'cider')
+                    reward, _ = get_self_critical_reward(greedy_res, sample_res, reports_ids, self.model.tokenizer, reward_type=reward_type)
                     reward = reward.to(self.device)
                     
                     mask = (sample_res > 0).float()
                     seq_logprobs_selected = sample_logprobs.gather(2, sample_res.unsqueeze(2)).squeeze(2)
-                    loss = - torch.sum(reward.unsqueeze(1) * seq_logprobs_selected * mask) / max(mask.sum(), 1.0)
+                    loss_scst = - torch.sum(reward.unsqueeze(1) * seq_logprobs_selected * mask) / max(mask.sum(), 1.0)
+
+                    # Compute CE Loss for mixed objective
+                    output = self.model(images, reports_ids, mode='train')
+                    loss_ce = self.criterion(output, reports_ids, reports_masks)
+
+                    rl_weight = getattr(self.args, 'rl_weight', 0.99)
+                    loss = rl_weight * loss_scst + (1.0 - rl_weight) * loss_ce
                 else:
                     output = self.model(images, reports_ids, mode='train')
                     loss = self.criterion(output, reports_ids, reports_masks)
