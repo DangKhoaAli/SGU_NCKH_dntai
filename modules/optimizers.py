@@ -4,9 +4,10 @@ from torch import optim
 
 def build_optimizer(args, model):
     ve_params = list(map(id, model.visual_extractor.parameters()))
-    ed_params = filter(lambda x: id(x) not in ve_params, model.parameters())
+    ed_params = filter(lambda x: id(x) not in ve_params and x.requires_grad, model.parameters())
+    trainable_ve_params = filter(lambda x: x.requires_grad, model.visual_extractor.parameters())
     optimizer = getattr(torch.optim, args.optim)(
-        [{'params': model.visual_extractor.parameters(), 'lr': args.lr_ve},
+        [{'params': trainable_ve_params, 'lr': args.lr_ve},
          {'params': ed_params, 'lr': args.lr_ed}],
         betas=args.adam_betas,
         eps=args.adam_eps,

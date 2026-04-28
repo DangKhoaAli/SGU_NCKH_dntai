@@ -25,6 +25,7 @@ python main_train.py\
     --batch_size 16 \
     --accum_steps 1 \
     --use_amp \
+    --freeze_visual_extractor \
     --lr_ve 1e-4 \
     --lr_ed 5e-4 \
     --step_size 10 \
