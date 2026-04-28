@@ -15,7 +15,7 @@ class VisualExtractor(nn.Module):
 
     def forward(self, images):
         patch_feats = self.model(images)
-        avg_feats = self.avg_fnt(patch_feats).squeeze().reshape(-1, patch_feats.size(1))
+        avg_feats = self.avg_fnt(patch_feats).squeeze().reshape(-1, patch_feats.size(1)) # đảm bảo format
         batch_size, feat_size, _, _ = patch_feats.shape
         patch_feats = patch_feats.reshape(batch_size, feat_size, -1).permute(0, 2, 1)
         return patch_feats, avg_feats

@@ -51,7 +51,7 @@ def memory_querying_responding(query, key, value, mask=None, dropout=None, topk=
     p_attn = F.softmax(selected_scores, dim=-1)  # tính softmax trên chiều cuối cùng
     if dropout is not None:
         p_attn = dropout(p_attn)
-    return torch.matmul(p_attn.unsqueeze(3), selected_value).squeeze(3), p_attn
+    return torch.matmul(p_attn.unsqueeze(3), selected_value).squeeze(3), p_attn # trả về [B, heads, T, d], p_attn
 
 
 class Transformer(nn.Module):
@@ -383,10 +383,10 @@ class BaseCMN(AttModel):
         att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
 
         if att_masks is None:
-            att_masks = att_feats.new_ones(att_feats.shape[:2], dtype=torch.long)
+            att_masks = att_feats.new_ones(att_feats.shape[:2], dtype=torch.long) # tạo kh có att_mask thì tạo mask là full 1
 
         # Memory querying and responding for visual features
-        dummy_memory_matrix = self.memory_matrix.unsqueeze(0).expand(att_feats.size(0), self.memory_matrix.size(0), self.memory_matrix.size(1))
+        dummy_memory_matrix = self.memory_matrix.unsqueeze(0).expand(att_feats.size(0), self.memory_matrix.size(0), self.memory_matrix.size(1))     #dùng để copy/expand memory_matrix theo batch size, để mỗi ảnh trong batch đều có cùng một bộ nhớ CMN để attention.
         responses = self.cmn(att_feats, dummy_memory_matrix, dummy_memory_matrix)
         att_feats = att_feats + responses
         # Memory querying and responding for visual features

@@ -17,7 +17,7 @@ def sort_pack_padded_sequence(input, lengths):
     inv_ix = indices.clone()
     inv_ix[indices] = torch.arange(0, len(indices)).type_as(inv_ix)
     return tmp, inv_ix
-
+ # thằng này dùng để 
 
 def pad_unsort_packed_sequence(input, inv_ix):
     tmp, _ = pad_packed_sequence(input, batch_first=True)
@@ -27,7 +27,7 @@ def pad_unsort_packed_sequence(input, inv_ix):
 
 def pack_wrapper(module, att_feats, att_masks):
     if att_masks is not None:
-        packed, inv_ix = sort_pack_padded_sequence(att_feats, att_masks.data.long().sum(1))
+        packed, inv_ix = sort_pack_padded_sequence(att_feats, att_masks.data.long().sum(1)) # 
         return pad_unsort_packed_sequence(PackedSequence(module(packed[0]), packed[1]), inv_ix)
     else:
         return module(att_feats)
@@ -62,12 +62,12 @@ class AttModel(CaptionModel):
                  nn.Dropout(self.drop_prob_lm)) +
                 ((nn.BatchNorm1d(self.input_encoding_size),) if self.use_bn == 2 else ())))
 
-    def clip_att(self, att_feats, att_masks):
+    def clip_att(self, att_feats, att_masks): # này dùng để 
         # Clip the length of att_masks and att_feats to the maximum length
         if att_masks is not None:
-            max_len = att_masks.data.long().sum(1).max()
-            att_feats = att_feats[:, :max_len].contiguous()
-            att_masks = att_masks[:, :max_len].contiguous()
+            max_len = att_masks.data.long().sum(1).max() # tính tổng độ dài của mask
+            att_feats = att_feats[:, :max_len].contiguous() # áp đặt dộ dài đó lên att_feats
+            att_masks = att_masks[:, :max_len].contiguous() # cập nhật lại mask
         return att_feats, att_masks
 
     def _prepare_feature(self, fc_feats, att_feats, att_masks):
