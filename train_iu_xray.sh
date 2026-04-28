@@ -22,6 +22,7 @@ python main_train.py\
     --max_seq_length 60 \
     --threshold 3 \
     --epochs 100 \
+    --scst_start_epoch 20 \
     --batch_size 16 \
     --accum_steps 1 \
     --use_amp \

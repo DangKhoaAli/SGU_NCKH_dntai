@@ -166,7 +166,7 @@ class AttModel(CaptionModel):
         trigrams = []  # will be a list of batch_size dictionaries
 
         seq = fc_feats.new_full((batch_size * sample_n, self.max_seq_length), self.pad_idx, dtype=torch.long)
-        seqLogprobs = fc_feats.new_zeros(batch_size * sample_n, self.max_seq_length, self.vocab_size + 1)
+        seqLogprobs_list = []
         for t in range(self.max_seq_length + 1):
             if t == 0:  # input <bos>
                 it = fc_feats.new_full([batch_size * sample_n], self.bos_idx, dtype=torch.long)
@@ -220,10 +220,15 @@ class AttModel(CaptionModel):
                 logprobs = logprobs * unfinished.unsqueeze(1).float()
                 unfinished = unfinished * (it != self.eos_idx)
             seq[:, t] = it
-            seqLogprobs[:, t] = logprobs
+            seqLogprobs_list.append(logprobs)
             # quit loop if all sequences have finished
             if unfinished.sum() == 0:
                 break
+
+        while len(seqLogprobs_list) < self.max_seq_length:
+            seqLogprobs_list.append(fc_feats.new_zeros(batch_size * sample_n, self.vocab_size + 1))
+        
+        seqLogprobs = torch.stack(seqLogprobs_list[:self.max_seq_length], dim=1)
 
         return seq, seqLogprobs
 
