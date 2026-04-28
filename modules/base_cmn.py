@@ -368,17 +368,30 @@ class BaseCMN(AttModel):
 
         self.memory_matrix = nn.Parameter(torch.FloatTensor(args.cmm_size, args.cmm_dim))
         nn.init.normal_(self.memory_matrix, 0, 1 / args.cmm_dim)
+        fc_feat_size = args.d_vf * (2 if args.dataset_name == 'iu_xray' else 1)
+        self.fc_memory_proj = nn.Linear(fc_feat_size, args.cmm_dim)
+        nn.init.zeros_(self.fc_memory_proj.weight)
+        nn.init.zeros_(self.fc_memory_proj.bias)
 
     def init_hidden(self, bsz):
         return []
 
+    def _condition_visual_memory(self, fc_feats):
+        memory_matrix = self.memory_matrix.unsqueeze(0).expand(
+            fc_feats.size(0),
+            self.memory_matrix.size(0),
+            self.memory_matrix.size(1)
+        )
+        global_bias = self.fc_memory_proj(fc_feats).unsqueeze(1)
+        return memory_matrix + global_bias
+
     def _prepare_feature(self, fc_feats, att_feats, att_masks):
-        att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks)
+        att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(fc_feats, att_feats, att_masks)
         memory = self.model.encode(att_feats, att_masks)
 
         return fc_feats[..., :1], att_feats[..., :1], memory, att_masks
 
-    def _prepare_feature_forward(self, att_feats, att_masks=None, seq=None):
+    def _prepare_feature_forward(self, fc_feats, att_feats, att_masks=None, seq=None):
         att_feats, att_masks = self.clip_att(att_feats, att_masks)
         att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
 
@@ -386,8 +399,8 @@ class BaseCMN(AttModel):
             att_masks = att_feats.new_ones(att_feats.shape[:2], dtype=torch.long) # tạo kh có att_mask thì tạo mask là full 1
 
         # Memory querying and responding for visual features
-        dummy_memory_matrix = self.memory_matrix.unsqueeze(0).expand(att_feats.size(0), self.memory_matrix.size(0), self.memory_matrix.size(1))     #dùng để copy/expand memory_matrix theo batch size, để mỗi ảnh trong batch đều có cùng một bộ nhớ CMN để attention.
-        responses = self.cmn(att_feats, dummy_memory_matrix, dummy_memory_matrix)
+        conditioned_memory_matrix = self._condition_visual_memory(fc_feats)
+        responses = self.cmn(att_feats, conditioned_memory_matrix, conditioned_memory_matrix)
         att_feats = att_feats + responses
         # Memory querying and responding for visual features
 
@@ -404,7 +417,7 @@ class BaseCMN(AttModel):
         return att_feats, seq, att_masks, seq_mask
 
     def _forward(self, fc_feats, att_feats, seq, att_masks=None):
-        att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(att_feats, att_masks, seq)
+        att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(fc_feats, att_feats, att_masks, seq)
         out = self.model(att_feats, seq, att_masks, seq_mask, memory_matrix=self.memory_matrix)
         outputs = F.log_softmax(self.logit(out), dim=-1)
 
