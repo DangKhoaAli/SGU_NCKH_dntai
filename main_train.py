@@ -59,10 +59,6 @@ def parse_agrs():
     parser.add_argument('--visual_extractor_pretrained', type=bool, default=True, help='whether to load the pretrained visual extractor')
     parser.add_argument('--freeze_visual_extractor', action='store_true',
                         help='freeze the visual extractor backbone and train only CMN/encoder/decoder.')
-    parser.add_argument('--visual_unfreeze_epoch', type=int, default=0,
-                        help='epoch to unfreeze visual extractor layers; 0 disables scheduled unfreezing.')
-    parser.add_argument('--visual_unfreeze_layers', type=str, default='all',
-                        help='visual extractor layers to unfreeze at visual_unfreeze_epoch: all or comma-separated layer names.')
 
     # Model settings (for Transformer)
     parser.add_argument('--d_model', type=int, default=512, help='the dimension of Transformer.')
@@ -170,13 +166,10 @@ def main():
 
     # build model architecture
     model = BaseCMNModel(args, tokenizer).to(device)
-    if args.freeze_visual_extractor or args.visual_unfreeze_epoch > 0:
+    if args.freeze_visual_extractor:
         for param in model.visual_extractor.parameters():
             param.requires_grad = False
-        if args.visual_unfreeze_epoch > 0:
-            print(f'Frozen visual extractor until epoch {args.visual_unfreeze_epoch}.')
-        else:
-            print('Frozen visual extractor: training CMN + SwinEncoder + Decoder only.')
+        print('Frozen visual extractor: training CMN + SwinEncoder + Decoder only.')
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total_params = sum(p.numel() for p in model.parameters())
