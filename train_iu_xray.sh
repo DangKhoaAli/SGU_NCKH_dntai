@@ -26,8 +26,10 @@ python main_train.py\
     --accum_steps 1 \
     --use_amp \
     --freeze_visual_extractor \
+    --visual_unfreeze_epoch 6 \
+    --visual_unfreeze_layers all \
     --optim AdamW \
-    --lr_ve 1e-5 \
+    --lr_ve 5e-6 \
     --lr_ed 3e-4 \
     --weight_decay 1e-4 \
     --lr_scheduler WarmupCosine \
