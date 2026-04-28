@@ -23,7 +23,10 @@ def _optimizer_kwargs(args):
 def build_optimizer(args, model):
     ve_params = list(map(id, model.visual_extractor.parameters()))
     ed_params = filter(lambda x: id(x) not in ve_params and x.requires_grad, model.parameters())
-    trainable_ve_params = filter(lambda x: x.requires_grad, model.visual_extractor.parameters())
+    if getattr(args, 'visual_unfreeze_epoch', 0) > 0:
+        trainable_ve_params = model.visual_extractor.parameters()
+    else:
+        trainable_ve_params = filter(lambda x: x.requires_grad, model.visual_extractor.parameters())
     optimizer = getattr(torch.optim, args.optim)(
         [{'params': trainable_ve_params, 'lr': args.lr_ve},
          {'params': ed_params, 'lr': args.lr_ed}],

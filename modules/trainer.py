@@ -84,10 +84,59 @@ class BaseTrainer(object):
         self.train_loss_history = []
         self.val_loss_history = []
         self.stopped_epoch = None
+        self.visual_unfrozen = getattr(args, 'visual_unfreeze_epoch', 0) <= 0
 
         #Resume...
         if args.resume is not None:
             self._resume_checkpoint(args.resume)
+
+    def _get_model(self):
+        return self.model.module if isinstance(self.model, torch.nn.DataParallel) else self.model
+
+    def _set_visual_layers_trainable(self, layer_names):
+        model = self._get_model()
+        visual_model = model.visual_extractor.model
+        layer_name_to_index = {
+            'conv1': 0,
+            'bn1': 1,
+            'layer1': 4,
+            'layer2': 5,
+            'layer3': 6,
+            'layer4': 7,
+        }
+
+        if 'all' in layer_names:
+            for param in model.visual_extractor.parameters():
+                param.requires_grad = True
+            return ['all']
+
+        unknown_layers = set(layer_names) - set(layer_name_to_index)
+        if unknown_layers:
+            raise ValueError(f'Unknown visual_unfreeze_layers: {sorted(unknown_layers)}')
+
+        for layer_name in layer_names:
+            for param in visual_model[layer_name_to_index[layer_name]].parameters():
+                param.requires_grad = True
+        return sorted(layer_names)
+
+    def _maybe_unfreeze_visual_extractor(self, epoch):
+        unfreeze_epoch = getattr(self.args, 'visual_unfreeze_epoch', 0)
+        if self.visual_unfrozen or unfreeze_epoch <= 0 or epoch < unfreeze_epoch:
+            return
+
+        layer_names = [
+            name.strip()
+            for name in getattr(self.args, 'visual_unfreeze_layers', 'all').split(',')
+            if name.strip()
+        ]
+        if not layer_names:
+            layer_names = ['all']
+
+        unfrozen_layers = self._set_visual_layers_trainable(layer_names)
+        self.visual_unfrozen = True
+        self.logger.info(
+            'Unfroze visual extractor layers at epoch {}: {}'.format(epoch, unfrozen_layers)
+        )
 
     @abstractmethod
     def _train_epoch(self, epoch):
@@ -96,11 +145,13 @@ class BaseTrainer(object):
     def train(self):
         not_improved_count = 0
         for epoch in range(self.start_epoch, self.epochs + 1):
+            self._maybe_unfreeze_visual_extractor(epoch)
             result = self._train_epoch(epoch)
 
             # save logged informations into log dict
             log = {'epoch': epoch}
             log.update(result)
+            log['visual_unfrozen'] = int(self.visual_unfrozen)
             self._record_best(log)
 
             # --- Lưu loss history để vẽ biểu đồ ---
