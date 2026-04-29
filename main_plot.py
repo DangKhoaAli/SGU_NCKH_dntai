@@ -11,6 +11,17 @@ from modules.tokenizers import Tokenizer
 from modules.tester import Tester
 
 
+def str2bool(value):
+    if isinstance(value, bool):
+        return value
+    value = value.lower()
+    if value in ('true', '1', 'yes', 'y', 'on'):
+        return True
+    if value in ('false', '0', 'no', 'n', 'off'):
+        return False
+    raise argparse.ArgumentTypeError('Expected true or false.')
+
+
 def parse_agrs():
     parser = argparse.ArgumentParser()
 
@@ -21,6 +32,8 @@ def parse_agrs():
                         help='the path to the directory containing the data.')
     parser.add_argument('--iu_xray_view_filter_csv', type=str, default='/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv',
                         help='CSV manifest used to keep 2 IU X-Ray views and drop extra views.')
+    parser.add_argument('--use_iu_xray_view_filter', type=str2bool, default=True,
+                        help='Whether to drop extra IU X-Ray views using iu_xray_view_filter_csv.')
 
     # Data loader settings
     parser.add_argument('--dataset_name', type=str, default='iu_xray', choices=['iu_xray', 'mimic_cxr'],

@@ -32,6 +32,7 @@ class BaseDataset(Dataset):
 class IuxrayMultiImageDataset(BaseDataset):
     def __init__(self, args, tokenizer, split, transform=None):
         super().__init__(args, tokenizer, split, transform)
+        self.use_view_filter = self._as_bool(getattr(args, 'use_iu_xray_view_filter', True))
         self.view_filter_csv = getattr(
             args,
             'iu_xray_view_filter_csv',
@@ -39,6 +40,11 @@ class IuxrayMultiImageDataset(BaseDataset):
         )
         self.view_filter_csv = self._resolve_view_filter_csv(self.view_filter_csv)
         self._apply_view_filter()
+
+    def _as_bool(self, value):
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
 
     def _resolve_view_filter_csv(self, view_filter_csv):
         if not view_filter_csv or os.path.exists(view_filter_csv):
@@ -56,6 +62,10 @@ class IuxrayMultiImageDataset(BaseDataset):
         return view_filter_csv
 
     def _apply_view_filter(self):
+        if not self.use_view_filter:
+            print(f"[IUXRAY view filter][{self.split}] disabled")
+            return
+
         if not self.view_filter_csv or not os.path.exists(self.view_filter_csv):
             print(f"[IUXRAY view filter][{self.split}] no filter csv found: {self.view_filter_csv}")
             return

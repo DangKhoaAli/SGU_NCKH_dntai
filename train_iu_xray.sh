@@ -15,6 +15,8 @@ N_GPU="${N_GPU:-2}"
 BATCH_SIZE="${BATCH_SIZE:-32}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 ACCUM_STEPS="${ACCUM_STEPS:-1}"
+USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
+IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
 
 # Giam memory fragmentation tren CUDA
 export PYTORCH_ALLOC_CONF=expandable_segments:True
@@ -23,6 +25,8 @@ python main_train.py\
     --image_dir "$DATASET_PATH/iu_xray/images/" \
     --ann_path "$DATASET_PATH/iu_xray/annotation.json" \
     --dataset_name iu_xray \
+    --use_iu_xray_view_filter "$USE_IU_XRAY_VIEW_FILTER" \
+    --iu_xray_view_filter_csv "$IU_XRAY_VIEW_FILTER_CSV" \
     --max_seq_length 60 \
     --threshold 3 \
     --epochs 100 \
