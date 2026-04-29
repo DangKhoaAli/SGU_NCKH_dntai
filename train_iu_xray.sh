@@ -4,7 +4,7 @@
 WANDB_ENTITY="phucga15062005" # team wandb  --> NOT CHANGE!
 WANDB_PROJECT="NCKH_R2Gen" # Project wandb --> NOT CHANGE!
 # Lấy WANDB_NAME từ environment (nếu được set trên Kaggle), ngược lại dùng tên mặc định
-WANDB_NAME="${WANDB_NAME:-team-scratch-AdamW-ReduceLROnPlateau-$(date '+%Y%m%d-%H%M')}"
+WANDB_NAME="${WANDB_NAME:-team-scratch-AdamW-WarmupCosine-$(date '+%Y%m%d-%H%M')}"
 
 RESUME_PATH="${RESUME_PATH:-}"
 
@@ -36,13 +36,12 @@ python main_train.py\
     --accum_steps "$ACCUM_STEPS" \
     --use_amp \
     --optim AdamW \
-    --lr_scheduler ReduceLROnPlateau \
+    --lr_scheduler WarmupCosine \
     --lr_ve 1e-4 \
     --lr_ed 5e-4 \
-    --reduce_on_plateau_factor 0.5 \
-    --reduce_on_plateau_patience 5 \
-    --reduce_on_plateau_threshold 1e-4 \
-    --min_lr 1e-6 \
+    --warmup_epochs 5 \
+    --warmup_start_factor 0.2 \
+    --min_lr 1e-5 \
     --num_layers 3 \
     --early_stop 50 \
     --topk 32 \
