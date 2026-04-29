@@ -11,6 +11,10 @@ RESUME_PATH="${RESUME_PATH:-}"
 # update for dataset path in kaggle IU_XRAY_RRG
 # đọc DATASET_PATH từ environment (set trên kaggle), nếu không có thì dùng local path
 DATASET_PATH="${DATASET_PATH:-data/iu_xray}"
+N_GPU="${N_GPU:-2}"
+BATCH_SIZE="${BATCH_SIZE:-32}"
+NUM_WORKERS="${NUM_WORKERS:-4}"
+ACCUM_STEPS="${ACCUM_STEPS:-1}"
 
 # Giam memory fragmentation tren CUDA
 export PYTORCH_ALLOC_CONF=expandable_segments:True
@@ -22,8 +26,10 @@ python main_train.py\
     --max_seq_length 60 \
     --threshold 3 \
     --epochs 100 \
-    --batch_size 16 \
-    --accum_steps 1 \
+    --n_gpu "$N_GPU" \
+    --batch_size "$BATCH_SIZE" \
+    --num_workers "$NUM_WORKERS" \
+    --accum_steps "$ACCUM_STEPS" \
     --use_amp \
     --optim AdamW \
     --lr_scheduler ReduceLROnPlateau \
