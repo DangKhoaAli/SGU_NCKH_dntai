@@ -11,6 +11,8 @@ python main_train.py \
     --step_size 3 \
     --gamma 0.8 \
     --num_layers 3 \
+    --swin_num_layers "${SWIN_NUM_LAYERS:-3}" \
+    --decoder_num_layers "${DECODER_NUM_LAYERS:-3}" \
     --topk 32 \
     --cmm_size 2048 \
     --cmm_dim 512 \

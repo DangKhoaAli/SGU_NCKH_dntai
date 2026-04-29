@@ -337,11 +337,11 @@ class BaseCMN(AttModel):
         model = Transformer(
             # Encoder(EncoderLayer(self.d_model, c(attn), c(ff), self.dropout), self.num_layers),
             SwinEncoder(
-        d_model=self.d_model,
-        num_layers=self.num_layers,
-        num_heads=self.num_heads
-    ),
-            Decoder(DecoderLayer(self.d_model, c(attn), c(attn), c(ff), self.dropout), self.num_layers),
+                d_model=self.d_model,
+                num_layers=self.swin_num_layers,
+                num_heads=self.num_heads
+            ),
+            Decoder(DecoderLayer(self.d_model, c(attn), c(attn), c(ff), self.dropout), self.decoder_num_layers),
             nn.Sequential(c(position)),
             nn.Sequential(Embeddings(self.d_model, tgt_vocab), c(position)), cmn)
         for p in model.parameters():
@@ -352,7 +352,9 @@ class BaseCMN(AttModel):
     def __init__(self, args, tokenizer):
         super(BaseCMN, self).__init__(args, tokenizer)
         self.args = args
-        self.num_layers = args.num_layers
+        self.swin_num_layers = getattr(args, 'swin_num_layers', None) or args.num_layers
+        self.decoder_num_layers = getattr(args, 'decoder_num_layers', None) or args.num_layers
+        self.num_layers = self.decoder_num_layers
         self.d_model = args.d_model
         self.d_ff = args.d_ff
         self.num_heads = args.num_heads

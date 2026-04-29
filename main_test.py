@@ -52,7 +52,12 @@ def parse_agrs():
     parser.add_argument('--d_ff', type=int, default=512, help='the dimension of FFN.')
     parser.add_argument('--d_vf', type=int, default=2048, help='the dimension of the patch features.')
     parser.add_argument('--num_heads', type=int, default=8, help='the number of heads in Transformer.')
-    parser.add_argument('--num_layers', type=int, default=3, help='the number of layers of Transformer.')
+    parser.add_argument('--num_layers', type=int, default=3,
+                        help='fallback number of layers for both Swin encoder and decoder.')
+    parser.add_argument('--swin_num_layers', type=int, default=None,
+                        help='the number of layers of Swin visual encoder; defaults to num_layers.')
+    parser.add_argument('--decoder_num_layers', type=int, default=None,
+                        help='the number of layers of Transformer decoder; defaults to num_layers.')
     parser.add_argument('--dropout', type=float, default=0.1, help='the dropout rate of Transformer.')
     parser.add_argument('--logit_layers', type=int, default=1, help='the number of the logit layer.')
     parser.add_argument('--bos_idx', type=int, default=1, help='the index of <bos>.')
