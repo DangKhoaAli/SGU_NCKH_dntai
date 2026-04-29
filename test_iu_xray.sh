@@ -1,3 +1,7 @@
+N_GPU="${N_GPU:-1}"
+NUM_WORKERS="${NUM_WORKERS:-4}"
+BATCH_SIZE="${BATCH_SIZE:-16}"
+
 python main_test.py \
     --image_dir data/iu_xray/images/ \
     --ann_path data/iu_xray/annotation.json \
@@ -5,7 +9,9 @@ python main_test.py \
     --max_seq_length 60 \
     --threshold 3 \
     --epochs 100 \
-    --batch_size 16 \
+    --n_gpu "$N_GPU" \
+    --batch_size "$BATCH_SIZE" \
+    --num_workers "$NUM_WORKERS" \
     --lr_ve 1e-4 \
     --lr_ed 5e-4 \
     --step_size 10 \
