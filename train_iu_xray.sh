@@ -35,7 +35,7 @@ python main_train.py\
     --num_workers "$NUM_WORKERS" \
     --accum_steps "$ACCUM_STEPS" \
     --use_amp \
-    --optim Adam \
+    --optim AdamW \
     --lr_scheduler StepLR \
     --lr_ve 1e-4 \
     --lr_ed 5e-4 \
