@@ -40,10 +40,6 @@ class BaseCMNModel(nn.Module):
         self.d_model = args.d_model
         self.visual_extractor = VisualExtractor(args)
         self.encoder_decoder = BaseCMN(args, tokenizer)
-        if args.dataset_name == 'iu_xray':
-            self.forward = self.forward_iu_xray
-        else:
-            self.forward = self.forward_mimic_cxr
 
         keyword_token_size = self._keyword_token_size(tokenizer)
         self.image_proj = nn.Linear(args.d_vf, args.d_model)
@@ -79,6 +75,11 @@ class BaseCMNModel(nn.Module):
         model_parameters = filter(lambda p: p.requires_grad, self.parameters())
         params = sum([np.prod(p.size()) for p in model_parameters])
         return super().__str__() + '\nTrainable parameters: {}'.format(params)
+
+    def forward(self, images, targets=None, mode='train', update_opts=None):
+        if self.args.dataset_name == 'iu_xray':
+            return self.forward_iu_xray(images, targets, mode, update_opts)
+        return self.forward_mimic_cxr(images, targets, mode, update_opts)
 
     def forward_iu_xray(self, images, targets=None, mode='train', update_opts=None):
         update_opts = update_opts or {}
