@@ -15,7 +15,7 @@ N_GPU="${N_GPU:-2}"
 BATCH_SIZE="${BATCH_SIZE:-32}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 ACCUM_STEPS="${ACCUM_STEPS:-1}"
-USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
+USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-false}"
 IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
 
 # Giam memory fragmentation tren CUDA
