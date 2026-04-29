@@ -85,15 +85,20 @@ class BaseCMNModel(nn.Module):
         att_feats_0, fc_feats_0 = self.visual_extractor(images[:, 0])
         att_feats_1, fc_feats_1 = self.visual_extractor(images[:, 1])
         
-        # start
-        att_feats_0 = self.image_proj(att_feats_0)  # Shape: (batchsize, 49, 512)
-        text_features = self.text_proj(self.text_feature)     # Shape: (20, 512)
-        text_features = text_features.unsqueeze(0).expand(att_feats_0.size(0), text_features.size(0), text_features.size(1)) 
+        att_feats_0_proj = self.image_proj(att_feats_0)
+        text_features = self.text_proj(self.text_feature)
+        text_features = text_features.unsqueeze(0).expand(
+            att_feats_0_proj.size(0),
+            text_features.size(0),
+            text_features.size(1)
+        )
 
-        att_feats_0 = self.cross_attention(query=text_features, key=att_feats_0, value=att_feats_0)
-        
+        att_feats_0 = self.cross_attention(
+            query=att_feats_0_proj,
+            key=text_features,
+            value=text_features
+        )
         att_feats_0 = self.out(att_feats_0)
-        # end
         
         fc_feats = torch.cat((fc_feats_0, fc_feats_1), dim=1)
         att_feats = torch.cat((att_feats_0, att_feats_1), dim=1)
@@ -110,12 +115,19 @@ class BaseCMNModel(nn.Module):
         update_opts = update_opts or {}
         att_feats, fc_feats = self.visual_extractor(images)
 
-        att_feats1 = self.image_proj(att_feats)  # Shape: (batchsize, 49, 512)
-        text_features = self.text_proj(self.text_feature_mimic)     # Shape: (20, 512)
-        text_features = text_features.unsqueeze(0).expand(att_feats.size(0), text_features.size(0), text_features.size(1)) 
+        att_feats1 = self.image_proj(att_feats)
+        text_features = self.text_proj(self.text_feature_mimic)
+        text_features = text_features.unsqueeze(0).expand(
+            att_feats1.size(0),
+            text_features.size(0),
+            text_features.size(1)
+        )
 
-        att_feats1 = self.cross_attention(query=text_features, key=att_feats1, value=att_feats1)
-        
+        att_feats1 = self.cross_attention(
+            query=att_feats1,
+            key=text_features,
+            value=text_features
+        )
         att_feats1 = self.out(att_feats1)
         
         att_feats = torch.cat((att_feats, att_feats1), dim=1)
