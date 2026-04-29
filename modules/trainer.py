@@ -438,7 +438,16 @@ class Trainer(BaseTrainer):
 
             log.update(**{'test_' + k: v for k, v in test_met.items()})
 
-        self.lr_scheduler.step()
+        if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            plateau_metric = log.get(self.mnt_metric, log.get('val_loss'))
+            if plateau_metric is None:
+                self.logger.warning(
+                    'ReduceLROnPlateau skipped: neither {} nor val_loss is available.'.format(self.mnt_metric)
+                )
+            else:
+                self.lr_scheduler.step(plateau_metric)
+        else:
+            self.lr_scheduler.step()
 
         log['lr_ve'] = self.optimizer.param_groups[0]['lr']
         log['lr_ed'] = self.optimizer.param_groups[1]['lr']

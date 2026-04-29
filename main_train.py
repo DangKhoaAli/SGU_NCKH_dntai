@@ -124,6 +124,14 @@ def parse_agrs():
     parser.add_argument('--warmup_epochs', type=int, default=0, help='warmup epochs for WarmupCosine scheduler.')
     parser.add_argument('--warmup_start_factor', type=float, default=0.1, help='initial LR scale during warmup.')
     parser.add_argument('--min_lr', type=float, default=1e-6, help='minimum LR for cosine scheduler.')
+    parser.add_argument('--reduce_on_plateau_factor', type=float, default=0.5,
+                        help='LR decay factor for ReduceLROnPlateau.')
+    parser.add_argument('--reduce_on_plateau_patience', type=int, default=5,
+                        help='epochs without improvement before reducing LR.')
+    parser.add_argument('--reduce_on_plateau_threshold', type=float, default=1e-4,
+                        help='minimum monitored metric change counted as improvement.')
+    parser.add_argument('--reduce_on_plateau_cooldown', type=int, default=0,
+                        help='cooldown epochs after ReduceLROnPlateau lowers LR.')
 
     # Resume & wandb
     parser.add_argument('--seed', type=int, default=2704, help='.')

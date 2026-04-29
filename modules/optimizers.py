@@ -44,6 +44,16 @@ def build_lr_scheduler(args, optimizer):
         return optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs, eta_min=args.min_lr)
     if scheduler_name == 'exponentiallr':
         return optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.gamma)
+    if scheduler_name == 'reducelronplateau':
+        return optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer,
+            mode=args.monitor_mode,
+            factor=args.reduce_on_plateau_factor,
+            patience=args.reduce_on_plateau_patience,
+            threshold=args.reduce_on_plateau_threshold,
+            cooldown=args.reduce_on_plateau_cooldown,
+            min_lr=args.min_lr
+        )
     if scheduler_name in ('warmupcosine', 'linearwarmupcosineannealinglr'):
         warmup_epochs = max(args.warmup_epochs, 0)
         cosine_epochs = max(args.epochs - warmup_epochs, 1)

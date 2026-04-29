@@ -368,21 +368,16 @@ class BaseCMN(AttModel):
 
         self.memory_matrix = nn.Parameter(torch.FloatTensor(args.cmm_size, args.cmm_dim))
         nn.init.normal_(self.memory_matrix, 0, 1 / args.cmm_dim)
-        fc_feat_size = args.d_vf * (2 if args.dataset_name == 'iu_xray' else 1)
-        self.fc_memory_proj = nn.Linear(fc_feat_size, args.cmm_dim)
-        self.global_memory_scale = nn.Parameter(torch.tensor(0.0))
 
     def init_hidden(self, bsz):
         return []
 
     def _condition_visual_memory(self, fc_feats):
-        memory_matrix = self.memory_matrix.unsqueeze(0).expand(
+        return self.memory_matrix.unsqueeze(0).expand(
             fc_feats.size(0),
             self.memory_matrix.size(0),
             self.memory_matrix.size(1)
         )
-        global_bias = self.fc_memory_proj(fc_feats).unsqueeze(1)
-        return memory_matrix + self.global_memory_scale * global_bias
 
     def _prepare_feature(self, fc_feats, att_feats, att_masks):
         att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(fc_feats, att_feats, att_masks)
