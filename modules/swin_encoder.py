@@ -222,16 +222,19 @@ class SwinBlock(nn.Module):
 
         attn_mask = None
         if do_shift:
-            attn_mask = self._build_shift_attention_mask(
+            attn_mask = self._build_shift_attention_mask( #Dùng cho shifted window attention
                 batch_size=batch_size,
                 height=height,
                 width=width,
                 shift_h=shift_h,
                 shift_w=shift_w,
                 device=x.device,
-            )
+            ) #attn_mask luật "patch này không được nhìn patch kia vì khác vùng sau shift"
 
-        key_padding_mask = self._build_key_padding_mask(
+
+        key_padding_mask = self._build_key_padding_mask( #Dùng để chặn các patch padding / patch không hợp lệ.
+
+
             mask=mask,
             batch_size=batch_size,
             height=height,
@@ -240,7 +243,7 @@ class SwinBlock(nn.Module):
             shift_h=shift_h,
             shift_w=shift_w,
             do_shift=do_shift,
-        )
+        ) #key_padding_mask = luật "patch này là giả/padding, đừng nhìn nó"
 
         attn_windows, _ = self.attn(
             x_windows,

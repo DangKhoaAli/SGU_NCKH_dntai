@@ -15,7 +15,7 @@ N_GPU="${N_GPU:-2}"
 BATCH_SIZE="${BATCH_SIZE:-32}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 ACCUM_STEPS="${ACCUM_STEPS:-1}"
-USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-false}"
+USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
 IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
 
 # Giam memory fragmentation tren CUDA
@@ -35,7 +35,7 @@ python main_train.py\
     --num_workers "$NUM_WORKERS" \
     --accum_steps "$ACCUM_STEPS" \
     --use_amp \
-    --optim AdamW \
+    --optim Adam \
     --lr_scheduler StepLR \
     --lr_ve 1e-4 \
     --lr_ed 5e-4 \

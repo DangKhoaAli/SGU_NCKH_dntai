@@ -78,6 +78,8 @@ notebooks/
 # Jupyter Notebook
 .ipynb_checkpoints
 logs/
+results/
+
 # IPython
 profile_default/
 ipython_config.py
