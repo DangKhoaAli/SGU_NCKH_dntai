@@ -1,9 +1,14 @@
 import json
 import os
+import csv
 
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+
+
+DEFAULT_IUXRAY_VIEW_FILTER_CSV = '/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv'
+LOCAL_IUXRAY_VIEW_FILTER_CSV = os.path.join('logs', 'iu_xray_select_2views_by_cosine.csv')
 
 
 class BaseDataset(Dataset):
@@ -25,6 +30,81 @@ class BaseDataset(Dataset):
 
 
 class IuxrayMultiImageDataset(BaseDataset):
+    def __init__(self, args, tokenizer, split, transform=None):
+        super().__init__(args, tokenizer, split, transform)
+        self.view_filter_csv = getattr(
+            args,
+            'iu_xray_view_filter_csv',
+            DEFAULT_IUXRAY_VIEW_FILTER_CSV
+        )
+        self.view_filter_csv = self._resolve_view_filter_csv(self.view_filter_csv)
+        self._apply_view_filter()
+
+    def _resolve_view_filter_csv(self, view_filter_csv):
+        if not view_filter_csv or os.path.exists(view_filter_csv):
+            return view_filter_csv
+
+        if view_filter_csv == DEFAULT_IUXRAY_VIEW_FILTER_CSV and os.path.exists(LOCAL_IUXRAY_VIEW_FILTER_CSV):
+            return LOCAL_IUXRAY_VIEW_FILTER_CSV
+
+        ann_dir = os.path.dirname(os.path.abspath(self.ann_path))
+        repo_root = os.path.dirname(os.path.dirname(ann_dir))
+        candidate = os.path.join(repo_root, view_filter_csv)
+        if os.path.exists(candidate):
+            return candidate
+
+        return view_filter_csv
+
+    def _apply_view_filter(self):
+        if not self.view_filter_csv or not os.path.exists(self.view_filter_csv):
+            print(f"[IUXRAY view filter][{self.split}] no filter csv found: {self.view_filter_csv}")
+            return
+
+        keep_by_folder = {}
+        drop_by_folder = {}
+        with open(self.view_filter_csv, 'r', encoding='utf-8', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                folder = row.get('folder', '')
+                keep = [name for name in row.get('keep', '').split(';') if name]
+                drop = [name for name in row.get('drop', '').split(';') if name]
+                if folder and len(keep) == 2:
+                    keep_by_folder[folder] = keep
+                    drop_by_folder[folder] = drop
+
+        filtered_studies = 0
+        removed_original_paths = 0
+        missing_folders = 0
+
+        for example in self.examples:
+            folder = example['id']
+            if folder not in keep_by_folder:
+                continue
+
+            keep_paths = [os.path.join(folder, image_name) for image_name in keep_by_folder[folder]]
+            missing = [
+                image_path for image_path in keep_paths
+                if not os.path.exists(os.path.join(self.image_dir, image_path))
+            ]
+            if missing:
+                missing_folders += 1
+                continue
+
+            old_paths = {os.path.normpath(path) for path in example.get('image_path', [])}
+            example['image_path'] = keep_paths
+            filtered_studies += 1
+            removed_original_paths += len(old_paths - {os.path.normpath(path) for path in keep_paths})
+
+        manifest_drop_count = sum(len(drop_by_folder.get(example['id'], [])) for example in self.examples)
+        print(
+            f"[IUXRAY view filter][{self.split}] filtered studies={filtered_studies}, "
+            f"drop images by manifest={manifest_drop_count}, "
+            f"removed original annotation paths={removed_original_paths}, "
+            f"csv={self.view_filter_csv}"
+        )
+        if missing_folders:
+            print(f"[IUXRAY view filter][{self.split}] skipped {missing_folders} studies because selected files were missing")
+
     def __getitem__(self, idx):
         example = self.examples[idx]
         image_id = example['id']
