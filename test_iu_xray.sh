@@ -1,5 +1,5 @@
 N_GPU="${N_GPU:-1}"
-NUM_WORKERS="${NUM_WORKERS:-4}"
+NUM_WORKERS="${NUM_WORKERS:0}"
 BATCH_SIZE="${BATCH_SIZE:-16}"
 USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
 IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
@@ -28,4 +28,4 @@ python main_test.py \
     --beam_size 3 \
     --save_dir results/iu_xray/ \
     --log_period 50 \
-    --load data/model_iu_xray.pth
+    --load data/model_best.pth
