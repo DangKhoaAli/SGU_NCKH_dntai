@@ -4,6 +4,8 @@ BATCH_SIZE="${BATCH_SIZE:-16}"
 USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
 IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
 USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-false}"
+USE_REGION_PROMPTS="${USE_REGION_PROMPTS:-false}"
+NUM_REGION_PROMPTS="${NUM_REGION_PROMPTS:-8}"
 
 python main_test.py \
     --image_dir data/iu_xray/images/ \
@@ -25,6 +27,8 @@ python main_test.py \
     --swin_num_layers "${SWIN_NUM_LAYERS:-3}" \
     --decoder_num_layers "${DECODER_NUM_LAYERS:-3}" \
     --use_view_type_embedding "$USE_VIEW_TYPE_EMBEDDING" \
+    --use_region_prompts "$USE_REGION_PROMPTS" \
+    --num_region_prompts "$NUM_REGION_PROMPTS" \
     --topk 32 \
     --cmm_size 2048 \
     --cmm_dim 512 \

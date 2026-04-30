@@ -92,6 +92,10 @@ def parse_agrs():
                         help='the number of layers of Transformer decoder; defaults to num_layers.')
     parser.add_argument('--use_view_type_embedding', type=str2bool, default=False,
                         help='add a learned embedding that marks IU X-Ray patches as view 1 or view 2.')
+    parser.add_argument('--use_region_prompts', type=str2bool, default=False,
+                        help='use learnable clinical region prompts to enrich visual tokens before CMN.')
+    parser.add_argument('--num_region_prompts', type=int, default=8,
+                        help='the number of learnable clinical region prompt tokens.')
     parser.add_argument('--dropout', type=float, default=0.1, help='the dropout rate of Transformer.')
     parser.add_argument('--logit_layers', type=int, default=1, help='the number of the logit layer.')
     parser.add_argument('--bos_idx', type=int, default=1, help='the index of <bos>.')
