@@ -384,6 +384,7 @@ class BaseCMN(AttModel):
             self.region_prompt_norm = nn.LayerNorm(self.d_model)
             self.region_visual_norm = nn.LayerNorm(self.d_model)
             self.region_prompt_dropout = nn.Dropout(self.dropout)
+            self.region_prompt_scale = nn.Parameter(torch.tensor(0.1))
 
         tgt_vocab = self.vocab_size + 1
 
@@ -449,7 +450,7 @@ class BaseCMN(AttModel):
             value=prompts,
             need_weights=False,
         )
-        return att_feats + self.region_prompt_dropout(visual_responses)
+        return att_feats + self.region_prompt_scale * self.region_prompt_dropout(visual_responses)
 
     def _prepare_feature(self, fc_feats, att_feats, att_masks):
         att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(fc_feats, att_feats, att_masks)
