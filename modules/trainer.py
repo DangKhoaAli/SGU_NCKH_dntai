@@ -55,8 +55,8 @@ class BaseTrainer(object):
         self.lr_scheduler = lr_scheduler
 
         # AMP scaler: chỉ kích hoạt khi --use_amp được truyền vào
-        self.use_amp = getattr(args, 'use_amp', False)
-        self.scaler = GradScaler() if self.use_amp else None
+        self.use_amp = getattr(args, 'use_amp', False) and torch.cuda.is_available()
+        self.scaler = GradScaler('cuda') if self.use_amp else None
         if self.use_amp:
             self.logger.info("AMP (Automatic Mixed Precision) ENABLED - VRAM usage ~halved")
 
@@ -84,10 +84,81 @@ class BaseTrainer(object):
         self.train_loss_history = []
         self.val_loss_history = []
         self.stopped_epoch = None
+        self.visual_unfrozen = getattr(args, 'visual_unfreeze_epoch', 0) <= 0
 
         #Resume...
         if args.resume is not None:
             self._resume_checkpoint(args.resume)
+
+    def _get_model(self):
+        return self.model.module if isinstance(self.model, torch.nn.DataParallel) else self.model
+
+    def _normalize_state_dict(self, state_dict):
+        normalized = {}
+        for key, value in state_dict.items():
+            if key.startswith('module.'):
+                key = key[len('module.'):]
+            normalized[key] = value
+        return normalized
+
+    def _load_model_state(self, state_dict):
+        incompatible = self._get_model().load_state_dict(
+            self._normalize_state_dict(state_dict),
+            strict=False
+        )
+        if incompatible.missing_keys:
+            self.logger.warning("Missing model keys when loading checkpoint: {}".format(incompatible.missing_keys))
+        unexpected_keys = [
+            key for key in incompatible.unexpected_keys
+            if 'fc_memory_proj' not in key and 'global_memory_scale' not in key
+        ]
+        if unexpected_keys:
+            self.logger.warning("Unexpected model keys when loading checkpoint: {}".format(unexpected_keys))
+
+    def _set_visual_layers_trainable(self, layer_names):
+        model = self._get_model()
+        visual_model = model.visual_extractor.model
+        layer_name_to_index = {
+            'conv1': 0,
+            'bn1': 1,
+            'layer1': 4,
+            'layer2': 5,
+            'layer3': 6,
+            'layer4': 7,
+        }
+
+        if 'all' in layer_names:
+            for param in model.visual_extractor.parameters():
+                param.requires_grad = True
+            return ['all']
+
+        unknown_layers = set(layer_names) - set(layer_name_to_index)
+        if unknown_layers:
+            raise ValueError(f'Unknown visual_unfreeze_layers: {sorted(unknown_layers)}')
+
+        for layer_name in layer_names:
+            for param in visual_model[layer_name_to_index[layer_name]].parameters():
+                param.requires_grad = True
+        return sorted(layer_names)
+
+    def _maybe_unfreeze_visual_extractor(self, epoch):
+        unfreeze_epoch = getattr(self.args, 'visual_unfreeze_epoch', 0)
+        if self.visual_unfrozen or unfreeze_epoch <= 0 or epoch < unfreeze_epoch:
+            return
+
+        layer_names = [
+            name.strip()
+            for name in getattr(self.args, 'visual_unfreeze_layers', 'all').split(',')
+            if name.strip()
+        ]
+        if not layer_names:
+            layer_names = ['all']
+
+        unfrozen_layers = self._set_visual_layers_trainable(layer_names)
+        self.visual_unfrozen = True
+        self.logger.info(
+            'Unfroze visual extractor layers at epoch {}: {}'.format(epoch, unfrozen_layers)
+        )
 
     @abstractmethod
     def _train_epoch(self, epoch):
@@ -96,11 +167,13 @@ class BaseTrainer(object):
     def train(self):
         not_improved_count = 0
         for epoch in range(self.start_epoch, self.epochs + 1):
+            self._maybe_unfreeze_visual_extractor(epoch)
             result = self._train_epoch(epoch)
 
             # save logged informations into log dict
             log = {'epoch': epoch}
             log.update(result)
+            log['visual_unfrozen'] = int(self.visual_unfrozen)
             self._record_best(log)
 
             # --- Lưu loss history để vẽ biểu đồ ---
@@ -223,7 +296,7 @@ class BaseTrainer(object):
     def _save_checkpoint(self, epoch, save_best=False):
         state = {
             'epoch': epoch,
-            'state_dict': self.model.state_dict(),
+            'state_dict': self._get_model().state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'lr_scheduler': self.lr_scheduler.state_dict() if self.lr_scheduler else None,
             'monitor_best': self.mnt_best
@@ -246,11 +319,19 @@ class BaseTrainer(object):
     def _resume_checkpoint(self, resume_path):
         resume_path = str(resume_path)
         self.logger.info("Loading checkpoint: {} ...".format(resume_path))
-        checkpoint = torch.load(resume_path)
+        checkpoint = torch.load(resume_path, map_location=self.device)
         self.start_epoch = checkpoint['epoch'] + 1
         self.mnt_best = checkpoint['monitor_best']
-        self.model.load_state_dict(checkpoint['state_dict'])
-        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        self._load_model_state(checkpoint['state_dict'])
+        try:
+            self.optimizer.load_state_dict(checkpoint['optimizer'])
+        except ValueError as exc:
+            self.logger.warning("Optimizer state skipped because model parameters changed: {}".format(exc))
+        if self.lr_scheduler and checkpoint.get('lr_scheduler') is not None:
+            try:
+                self.lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+            except ValueError as exc:
+                self.logger.warning("LR scheduler state skipped: {}".format(exc))
 
         self.logger.info("Checkpoint loaded. Resume training from epoch {}".format(self.start_epoch))
 
@@ -275,8 +356,9 @@ class Trainer(BaseTrainer):
         self.optimizer.zero_grad()  # reset gradient trước epoch
         for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.train_dataloader):
 
-            images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(self.device), \
-                                                 reports_masks.to(self.device)
+            images = images.to(self.device, non_blocking=True)
+            reports_ids = reports_ids.to(self.device, non_blocking=True)
+            reports_masks = reports_masks.to(self.device, non_blocking=True)
 
             # --- Forward (with AMP nếu được bật) ---
             with autocast('cuda', enabled=self.use_amp):
@@ -284,25 +366,23 @@ class Trainer(BaseTrainer):
                     self.model.eval()
                     with torch.no_grad():
                         greedy_res, _ = self.model(images, mode='sample', update_opts={'sample_method': 'greedy'})
-                    
                     self.model.train()
                     sample_res, sample_logprobs = self.model(images, mode='sample', update_opts={'sample_method': 'sample'})
                     
                     from modules.reward import get_self_critical_reward
                     reward_type = getattr(self.args, 'scst_reward', 'cider')
-                    reward, _ = get_self_critical_reward(greedy_res, sample_res, reports_ids, self.model.tokenizer, reward_type=reward_type)
+                    reward, _ = get_self_critical_reward(greedy_res, sample_res, reports_ids, self._get_model().tokenizer, reward_type=reward_type)
                     reward = reward.to(self.device)
                     
                     mask = (sample_res > 0).float()
-                    seq_logprobs_selected = sample_logprobs.gather(2, sample_res.unsqueeze(2)).squeeze(2)
-                    loss_scst = - torch.sum(reward.unsqueeze(1) * seq_logprobs_selected * mask) / max(mask.sum(), 1.0)
-
-                    # Compute CE Loss for mixed objective
+                    sample_logprobs = sample_logprobs * mask
+                    scst_loss = - (reward * sample_logprobs.sum(1) / mask.sum(1)).mean()
+                    
                     output = self.model(images, reports_ids, mode='train')
-                    loss_ce = self.criterion(output, reports_ids, reports_masks)
-
+                    ce_loss = self.criterion(output, reports_ids, reports_masks)
+                    
                     rl_weight = getattr(self.args, 'rl_weight', 0.99)
-                    loss = rl_weight * loss_scst + (1.0 - rl_weight) * loss_ce
+                    loss = rl_weight * scst_loss + (1.0 - rl_weight) * ce_loss
                 else:
                     output = self.model(images, reports_ids, mode='train')
                     loss = self.criterion(output, reports_ids, reports_masks)
@@ -330,9 +410,6 @@ class Trainer(BaseTrainer):
                     )
                     train_nll_sum += batch_nll_sum.item()
                     train_token_count += batch_token_count.item()
-                else:
-                    train_nll_sum += loss.item()
-                    train_token_count += 1.0
 
             if batch_idx % self.args.log_period == 0:
                 self.logger.info('[{}/{}] Step: {}/{}, Training Loss: {:.5f}.'
@@ -354,12 +431,13 @@ class Trainer(BaseTrainer):
             val_token_count = 0.0
 
             for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.val_dataloader):
-                images = images.to(self.device)
-                reports_ids = reports_ids.to(self.device)
-                reports_masks = reports_masks.to(self.device)
+                images = images.to(self.device, non_blocking=True)
+                reports_ids = reports_ids.to(self.device, non_blocking=True)
+                reports_masks = reports_masks.to(self.device, non_blocking=True)
 
                 # teacher-forcing validation
-                output = self.model(images, reports_ids, mode='train')
+                with autocast('cuda', enabled=self.use_amp):
+                    output = self.model(images, reports_ids, mode='train')
 
                 batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
                     output, reports_ids, reports_masks
@@ -371,15 +449,18 @@ class Trainer(BaseTrainer):
             log['val_loss'] = val_nll_sum / max(val_token_count, 1.0)
             print('val_loss: ', log['val_loss'])
 
+            model_core = self._get_model()
             val_gts, val_res = [], []
             for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.val_dataloader):
-                images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
-                    self.device), reports_masks.to(self.device)
+                images = images.to(self.device, non_blocking=True)
+                reports_ids = reports_ids.to(self.device, non_blocking=True)
+                reports_masks = reports_masks.to(self.device, non_blocking=True)
 
-                output, _ = self.model(images, mode='sample')
+                with autocast('cuda', enabled=self.use_amp):
+                    output, _ = self.model(images, mode='sample')
 
-                reports = self.model.tokenizer.decode_batch(output.cpu().numpy())
-                ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
+                reports = model_core.tokenizer.decode_batch(output.cpu().numpy())
+                ground_truths = model_core.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
 
                 val_res.extend(reports)
                 val_gts.extend(ground_truths)
@@ -396,12 +477,14 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             test_gts, test_res = [], []
             for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.test_dataloader):
-                images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
-                    self.device), reports_masks.to(self.device)
-                output, _ = self.model(images, mode='sample')
+                images = images.to(self.device, non_blocking=True)
+                reports_ids = reports_ids.to(self.device, non_blocking=True)
+                reports_masks = reports_masks.to(self.device, non_blocking=True)
+                with autocast('cuda', enabled=self.use_amp):
+                    output, _ = self.model(images, mode='sample')
 
-                reports = self.model.tokenizer.decode_batch(output.cpu().numpy())
-                ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
+                reports = model_core.tokenizer.decode_batch(output.cpu().numpy())
+                ground_truths = model_core.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
 
                 test_res.extend(reports)
                 test_gts.extend(ground_truths)
@@ -413,7 +496,16 @@ class Trainer(BaseTrainer):
 
             log.update(**{'test_' + k: v for k, v in test_met.items()})
 
-        self.lr_scheduler.step()
+        if isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            plateau_metric = log.get(self.mnt_metric, log.get('val_loss'))
+            if plateau_metric is None:
+                self.logger.warning(
+                    'ReduceLROnPlateau skipped: neither {} nor val_loss is available.'.format(self.mnt_metric)
+                )
+            else:
+                self.lr_scheduler.step(plateau_metric)
+        else:
+            self.lr_scheduler.step()
 
         log['lr_ve'] = self.optimizer.param_groups[0]['lr']
         log['lr_ed'] = self.optimizer.param_groups[1]['lr']

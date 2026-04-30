@@ -13,10 +13,6 @@ class BaseCMNModel(nn.Module):
         self.tokenizer = tokenizer
         self.visual_extractor = VisualExtractor(args)
         self.encoder_decoder = BaseCMN(args, tokenizer)
-        if args.dataset_name == 'iu_xray':
-            self.forward = self.forward_iu_xray
-        else:
-            self.forward = self.forward_mimic_cxr
 
     def __str__(self):
         model_parameters = filter(lambda p: p.requires_grad, self.parameters())
@@ -36,6 +32,11 @@ class BaseCMNModel(nn.Module):
             return output, output_probs
         else:
             raise ValueError
+
+    def forward(self, images, targets=None, mode='train', update_opts={}):
+        if self.args.dataset_name == 'iu_xray':
+            return self.forward_iu_xray(images, targets, mode, update_opts)
+        return self.forward_mimic_cxr(images, targets, mode, update_opts)
 
     def forward_mimic_cxr(self, images, targets=None, mode='train', update_opts={}):
         att_feats, fc_feats = self.visual_extractor(images)

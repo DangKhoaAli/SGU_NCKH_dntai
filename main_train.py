@@ -35,6 +35,17 @@ def get_env_info():
     }
 
 
+def str2bool(value):
+    if isinstance(value, bool):
+        return value
+    value = value.lower()
+    if value in ('true', '1', 'yes', 'y', 'on'):
+        return True
+    if value in ('false', '0', 'no', 'n', 'off'):
+        return False
+    raise argparse.ArgumentTypeError('Expected true or false.')
+
+
 def parse_agrs():
     parser = argparse.ArgumentParser()
 
@@ -43,6 +54,10 @@ def parse_agrs():
                         help='the path to the directory containing the data.')
     parser.add_argument('--ann_path', type=str, default='data/iu_xray/annotation.json',
                         help='the path to the directory containing the data.')
+    parser.add_argument('--iu_xray_view_filter_csv', type=str, default='/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv',
+                        help='CSV manifest used to keep 2 IU X-Ray views and drop extra views.')
+    parser.add_argument('--use_iu_xray_view_filter', type=str2bool, default=True,
+                        help='Whether to drop extra IU X-Ray views using iu_xray_view_filter_csv.')
 
     # Data loader settings
     parser.add_argument('--dataset_name', type=str, default='iu_xray', choices=['iu_xray', 'mimic_cxr'],
@@ -57,6 +72,12 @@ def parse_agrs():
     # Model settings (for visual extractor)
     parser.add_argument('--visual_extractor', type=str, default='resnet101', help='the visual extractor to be used.')
     parser.add_argument('--visual_extractor_pretrained', type=bool, default=True, help='whether to load the pretrained visual extractor')
+    parser.add_argument('--freeze_visual_extractor', action='store_true',
+                        help='freeze the visual extractor backbone and train only CMN/encoder/decoder.')
+    parser.add_argument('--visual_unfreeze_epoch', type=int, default=0,
+                        help='epoch to unfreeze visual extractor layers; 0 disables scheduled unfreezing.')
+    parser.add_argument('--visual_unfreeze_layers', type=str, default='all',
+                        help='visual extractor layers to unfreeze at visual_unfreeze_epoch: all or comma-separated layer names.')
 
     # Model settings (for Transformer)
     parser.add_argument('--d_model', type=int, default=512, help='the dimension of Transformer.')
@@ -98,8 +119,8 @@ def parse_agrs():
     parser.add_argument('--monitor_metric', type=str, default='BLEU_4', help='the metric to be monitored.')
     parser.add_argument('--early_stop', type=int, default=50, help='the patience of training.')
     parser.add_argument('--scst_start_epoch', type=int, default=20, help='the epoch to start SCST training.')
-    parser.add_argument('--scst_reward', type=str, default='cider', choices=['cider', 'bleu'], help='the metric to use for SCST reward.')
-    parser.add_argument('--rl_weight', type=float, default=0.99, help='the weight of the SCST loss (vs CE loss).')
+    parser.add_argument('--scst_reward', type=str, default='cider', help='the reward to use for SCST.')
+    parser.add_argument('--rl_weight', type=float, default=0.99, help='the weight for SCST loss in mixed objective.')
 
     # Optimization
     parser.add_argument('--optim', type=str, default='Adam', help='the type of the optimizer.')
@@ -109,6 +130,8 @@ def parse_agrs():
     parser.add_argument('--adam_betas', type=tuple, default=(0.9, 0.98), help='the weight decay.')
     parser.add_argument('--adam_eps', type=float, default=1e-9, help='the weight decay.')
     parser.add_argument('--amsgrad', type=bool, default=True, help='.')
+    parser.add_argument('--momentum', type=float, default=0.9, help='the momentum for SGD.')
+    parser.add_argument('--nesterov', action='store_true', help='enable Nesterov momentum for SGD.')
     parser.add_argument('--noamopt_warmup', type=int, default=5000, help='.')
     parser.add_argument('--noamopt_factor', type=int, default=1, help='.')
 
@@ -116,6 +139,17 @@ def parse_agrs():
     parser.add_argument('--lr_scheduler', type=str, default='StepLR', help='the type of the learning rate scheduler.')
     parser.add_argument('--step_size', type=int, default=50, help='the step size of the learning rate scheduler.')
     parser.add_argument('--gamma', type=float, default=0.1, help='the gamma of the learning rate scheduler.')
+    parser.add_argument('--warmup_epochs', type=int, default=0, help='warmup epochs for WarmupCosine scheduler.')
+    parser.add_argument('--warmup_start_factor', type=float, default=0.1, help='initial LR scale during warmup.')
+    parser.add_argument('--min_lr', type=float, default=1e-6, help='minimum LR for cosine scheduler.')
+    parser.add_argument('--reduce_on_plateau_factor', type=float, default=0.5,
+                        help='LR decay factor for ReduceLROnPlateau.')
+    parser.add_argument('--reduce_on_plateau_patience', type=int, default=5,
+                        help='epochs without improvement before reducing LR.')
+    parser.add_argument('--reduce_on_plateau_threshold', type=float, default=1e-4,
+                        help='minimum monitored metric change counted as improvement.')
+    parser.add_argument('--reduce_on_plateau_cooldown', type=int, default=0,
+                        help='cooldown epochs after ReduceLROnPlateau lowers LR.')
 
     # Resume & wandb
     parser.add_argument('--seed', type=int, default=2704, help='.')
@@ -162,6 +196,17 @@ def main():
 
     # build model architecture
     model = BaseCMNModel(args, tokenizer).to(device)
+    if args.freeze_visual_extractor or args.visual_unfreeze_epoch > 0:
+        for param in model.visual_extractor.parameters():
+            param.requires_grad = False
+        if args.visual_unfreeze_epoch > 0:
+            print(f'Frozen visual extractor until epoch {args.visual_unfreeze_epoch}.')
+        else:
+            print('Frozen visual extractor: training CMN + SwinEncoder + Decoder only.')
+
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f'Trainable parameters: {trainable_params:,}/{total_params:,}')
 
     # get function handles of loss and metrics
     criterion = compute_loss

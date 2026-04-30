@@ -59,11 +59,37 @@ class BaseTester(object):
         list_ids = list(range(n_gpu_use))
         return device, list_ids
 
+    def _get_model(self):
+        return self.model.module if isinstance(self.model, torch.nn.DataParallel) else self.model
+
+    def _normalize_state_dict(self, state_dict):
+        normalized = {}
+        for key, value in state_dict.items():
+            if key.startswith('module.'):
+                key = key[len('module.'):]
+            normalized[key] = value
+        return normalized
+
+    def _load_model_state(self, state_dict):
+        incompatible = self._get_model().load_state_dict(
+            self._normalize_state_dict(state_dict),
+            strict=False
+        )
+        if incompatible.missing_keys:
+            self.logger.warning("Missing model keys when loading checkpoint: {}".format(incompatible.missing_keys))
+        unexpected_keys = [
+            key for key in incompatible.unexpected_keys
+            if 'fc_memory_proj' not in key and 'global_memory_scale' not in key
+        ]
+        if unexpected_keys:
+            self.logger.warning("Unexpected model keys when loading checkpoint: {}".format(unexpected_keys))
+
     def _load_checkpoint(self, load_path):
         load_path = str(load_path)
         self.logger.info("Loading checkpoint: {} ...".format(load_path))
-        checkpoint = torch.load(load_path)
-        self.model.load_state_dict(checkpoint['state_dict'])
+        checkpoint = torch.load(load_path, map_location=self.device)
+        state_dict = checkpoint.get('state_dict', checkpoint)
+        self._load_model_state(state_dict)
 
 
 class Tester(BaseTester):
@@ -74,15 +100,17 @@ class Tester(BaseTester):
     def test(self):
         self.logger.info('Start to evaluate in the test set.')
         self.model.eval()
+        model_core = self._get_model()
         log = dict()
         with torch.no_grad():
             test_gts, test_res = [], []
             for batch_idx, (images_id, images, reports_ids, reports_masks) in tqdm(enumerate(self.test_dataloader)):
-                images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
-                    self.device), reports_masks.to(self.device)
+                images = images.to(self.device, non_blocking=True)
+                reports_ids = reports_ids.to(self.device, non_blocking=True)
+                reports_masks = reports_masks.to(self.device, non_blocking=True)
                 output, _ = self.model(images, mode='sample')
-                reports = self.model.tokenizer.decode_batch(output.cpu().numpy())
-                ground_truths = self.model.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
+                reports = model_core.tokenizer.decode_batch(output.cpu().numpy())
+                ground_truths = model_core.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
                 test_res.extend(reports)
                 test_gts.extend(ground_truths)
 
@@ -109,17 +137,19 @@ class Tester(BaseTester):
         std = std[:, None, None]
 
         self.model.eval()
+        model_core = self._get_model()
         with torch.no_grad():
             for batch_idx, (images_id, images, reports_ids, reports_masks) in tqdm(enumerate(self.test_dataloader)):
-                images, reports_ids, reports_masks = images.to(self.device), reports_ids.to(
-                    self.device), reports_masks.to(self.device)
+                images = images.to(self.device, non_blocking=True)
+                reports_ids = reports_ids.to(self.device, non_blocking=True)
+                reports_masks = reports_masks.to(self.device, non_blocking=True)
                 output, _ = self.model(images, mode='sample')
                 image = torch.clamp((images[0].cpu() * std + mean) * 255, 0, 255).int().cpu().numpy()
-                report = self.model.tokenizer.decode_batch(output.cpu().numpy())[0].split()
+                report = model_core.tokenizer.decode_batch(output.cpu().numpy())[0].split()
 
                 char2word = [idx for word_idx, word in enumerate(report) for idx in [word_idx] * (len(word) + 1)][:-1]
 
-                attention_weights = self.model.encoder_decoder.attention_weights[:-1]
+                attention_weights = model_core.encoder_decoder.attention_weights[:-1]
                 assert len(attention_weights) == len(report)
                 for word_idx, (attns, word) in enumerate(zip(attention_weights, report)):
                     for layer_idx, attn in enumerate(attns):

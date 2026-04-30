@@ -196,7 +196,7 @@ class AttModel(CaptionModel):
                             trigrams[i][prev_two] = [current]
                 # Block used trigrams at next step
                 prev_two_batch = seq[:, t - 2:t]
-                mask = torch.zeros(logprobs.size(), requires_grad=False).cuda()  # batch_size x vocab_size
+                mask = logprobs.new_zeros(logprobs.size())  # batch_size x vocab_size
                 for i in range(batch_size):
                     prev_two = (prev_two_batch[i][0].item(), prev_two_batch[i][1].item())
                     if prev_two in trigrams[i]:
@@ -224,12 +224,11 @@ class AttModel(CaptionModel):
             # quit loop if all sequences have finished
             if unfinished.sum() == 0:
                 break
-
-        while len(seqLogprobs_list) < self.max_seq_length:
-            seqLogprobs_list.append(fc_feats.new_zeros(batch_size * sample_n, self.vocab_size + 1))
         
-        seqLogprobs = torch.stack(seqLogprobs_list[:self.max_seq_length], dim=1)
-
+        seqLogprobs = torch.stack(seqLogprobs_list, 1)
+        if seqLogprobs.size(1) < self.max_seq_length:
+            pad = fc_feats.new_zeros(batch_size * sample_n, self.max_seq_length - seqLogprobs.size(1), self.vocab_size + 1)
+            seqLogprobs = torch.cat([seqLogprobs, pad], 1)
         return seq, seqLogprobs
 
     def _diverse_sample(self, fc_feats, att_feats, att_masks=None, opt={}):
@@ -298,7 +297,7 @@ class AttModel(CaptionModel):
                                     trigrams[i][prev_two] = [current]
                         # Block used trigrams at next step
                         prev_two_batch = seq[:, t - 2:t]
-                        mask = torch.zeros(logprobs.size(), requires_grad=False).cuda()  # batch_size x vocab_size
+                        mask = logprobs.new_zeros(logprobs.size())  # batch_size x vocab_size
                         for i in range(batch_size):
                             prev_two = (prev_two_batch[i][0].item(), prev_two_batch[i][1].item())
                             if prev_two in trigrams[i]:

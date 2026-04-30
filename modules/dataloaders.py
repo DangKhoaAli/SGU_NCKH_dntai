@@ -41,8 +41,11 @@ class R2DataLoader(DataLoader):
             'batch_size': self.batch_size,
             'shuffle': self.shuffle,
             'collate_fn': self.collate_fn,
-            'num_workers': self.num_workers
+            'num_workers': self.num_workers,
+            'pin_memory': torch.cuda.is_available()
         }
+        if self.num_workers > 0:
+            self.init_kwargs['persistent_workers'] = True
         super().__init__(**self.init_kwargs)
 
     @staticmethod
