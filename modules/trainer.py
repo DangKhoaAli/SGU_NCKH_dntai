@@ -353,21 +353,26 @@ class Trainer(BaseTrainer):
         accum_steps = getattr(self.args, 'accum_steps', 1)  # gradient accumulation
 
         self.model.train()
+        is_dataparallel = isinstance(self.model, torch.nn.DataParallel)
         self.optimizer.zero_grad()  # reset gradient trước epoch
         for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.train_dataloader):
 
-            images = images.to(self.device, non_blocking=True)
-            reports_ids = reports_ids.to(self.device, non_blocking=True)
-            reports_masks = reports_masks.to(self.device, non_blocking=True)
+            # If using DataParallel, inputs must remain on CPU so DataParallel.scatter
+            # can split and send them to each device. If model is not DataParallel,
+            # move tensors to the configured device.
+            if not is_dataparallel:
+                images = images.to(self.device, non_blocking=True)
+                reports_ids = reports_ids.to(self.device, non_blocking=True)
+                reports_masks = reports_masks.to(self.device, non_blocking=True)
 
             # --- Forward (with AMP nếu được bật) ---
             with autocast('cuda', enabled=self.use_amp):
                 if epoch >= getattr(self.args, 'scst_start_epoch', 20):
                     self.model.eval()
                     with torch.no_grad():
-                        greedy_res, _ = self.model(images, mode='sample', update_opts={'sample_method': 'greedy'})
+                        greedy_res, _ = self.model(images, None, 'sample', {'sample_method': 'greedy'})
                     self.model.train()
-                    sample_res, sample_logprobs = self.model(images, mode='sample', update_opts={'sample_method': 'sample'})
+                    sample_res, sample_logprobs = self.model(images, None, 'sample', {'sample_method': 'sample'})
                     
                     from modules.reward import get_self_critical_reward
                     reward_type = getattr(self.args, 'scst_reward', 'cider')
@@ -381,13 +386,13 @@ class Trainer(BaseTrainer):
                     sample_logprobs = sample_logprobs * mask
                     scst_loss = - (reward * sample_logprobs.sum(1) / mask.sum(1)).mean()
                     
-                    output = self.model(images, reports_ids, mode='train')
+                    output = self.model(images, reports_ids, 'train')
                     ce_loss = self.criterion(output, reports_ids, reports_masks)
                     
                     rl_weight = getattr(self.args, 'rl_weight', 0.99)
                     loss = rl_weight * scst_loss + (1.0 - rl_weight) * ce_loss
                 else:
-                    output = self.model(images, reports_ids, mode='train')
+                    output = self.model(images, reports_ids, 'train')
                     loss = self.criterion(output, reports_ids, reports_masks)
 
             # --- Backward (gradient accumulation) ---
@@ -434,13 +439,14 @@ class Trainer(BaseTrainer):
             val_token_count = 0.0
 
             for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.val_dataloader):
-                images = images.to(self.device, non_blocking=True)
-                reports_ids = reports_ids.to(self.device, non_blocking=True)
-                reports_masks = reports_masks.to(self.device, non_blocking=True)
+                if not is_dataparallel:
+                    images = images.to(self.device, non_blocking=True)
+                    reports_ids = reports_ids.to(self.device, non_blocking=True)
+                    reports_masks = reports_masks.to(self.device, non_blocking=True)
 
                 # teacher-forcing validation
                 with autocast('cuda', enabled=self.use_amp):
-                    output = self.model(images, reports_ids, mode='train')
+                    output = self.model(images, reports_ids, 'train')
 
                 batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
                     output, reports_ids, reports_masks
@@ -455,12 +461,13 @@ class Trainer(BaseTrainer):
             model_core = self._get_model()
             val_gts, val_res = [], []
             for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.val_dataloader):
-                images = images.to(self.device, non_blocking=True)
-                reports_ids = reports_ids.to(self.device, non_blocking=True)
-                reports_masks = reports_masks.to(self.device, non_blocking=True)
+                if not is_dataparallel:
+                    images = images.to(self.device, non_blocking=True)
+                    reports_ids = reports_ids.to(self.device, non_blocking=True)
+                    reports_masks = reports_masks.to(self.device, non_blocking=True)
 
                 with autocast('cuda', enabled=self.use_amp):
-                    output, _ = self.model(images, mode='sample')
+                    output, _ = self.model(images, None, 'sample')
 
                 reports = model_core.tokenizer.decode_batch(output.cpu().numpy())
                 ground_truths = model_core.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
@@ -480,11 +487,12 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             test_gts, test_res = [], []
             for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.test_dataloader):
-                images = images.to(self.device, non_blocking=True)
-                reports_ids = reports_ids.to(self.device, non_blocking=True)
-                reports_masks = reports_masks.to(self.device, non_blocking=True)
+                if not is_dataparallel:
+                    images = images.to(self.device, non_blocking=True)
+                    reports_ids = reports_ids.to(self.device, non_blocking=True)
+                    reports_masks = reports_masks.to(self.device, non_blocking=True)
                 with autocast('cuda', enabled=self.use_amp):
-                    output, _ = self.model(images, mode='sample')
+                    output, _ = self.model(images, None, 'sample')
 
                 reports = model_core.tokenizer.decode_batch(output.cpu().numpy())
                 ground_truths = model_core.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
