@@ -17,6 +17,7 @@ NUM_WORKERS="${NUM_WORKERS:-4}"
 ACCUM_STEPS="${ACCUM_STEPS:-1}"
 USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
 IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
+USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-false}"
 
 # Giam memory fragmentation tren CUDA
 export PYTORCH_ALLOC_CONF=expandable_segments:True
@@ -42,8 +43,9 @@ python main_train.py\
     --step_size 10 \
     --gamma 0.8 \
     --num_layers 3 \
-    --swin_num_layers "${SWIN_NUM_LAYERS:-4}" \
+    --swin_num_layers "${SWIN_NUM_LAYERS:-3}" \
     --decoder_num_layers "${DECODER_NUM_LAYERS:-3}" \
+    --use_view_type_embedding "$USE_VIEW_TYPE_EMBEDDING" \
     --early_stop 50 \
     --topk 32 \
     --cmm_size 2048 \
