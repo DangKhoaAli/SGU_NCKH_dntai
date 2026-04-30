@@ -30,7 +30,7 @@ python main_train.py\
     --max_seq_length 60 \
     --threshold 3 \
     --epochs 100 \
-    --scst_start_epoch 20 \
+    --scst_start_epoch 17 \
     --scst_reward cider \
     --rl_weight 0.99 \
     --n_gpu "$N_GPU" \
