@@ -375,6 +375,9 @@ class Trainer(BaseTrainer):
                     reward = reward.to(self.device)
                     
                     mask = (sample_res > 0).float()
+                    # Gather the log probability of the sampled token at each time step
+                    # sample_res is (B, seq_len), sample_logprobs is (B, seq_len, vocab_size)
+                    sample_logprobs = sample_logprobs.gather(2, sample_res.unsqueeze(2)).squeeze(2)
                     sample_logprobs = sample_logprobs * mask
                     scst_loss = - (reward * sample_logprobs.sum(1) / mask.sum(1)).mean()
                     
