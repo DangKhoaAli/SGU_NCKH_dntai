@@ -11,7 +11,7 @@ RESUME_PATH="${RESUME_PATH:-/kaggle/input/models/nadkli2704/modelbest/pytorch/de
 # update for dataset path in kaggle IU_XRAY_RRG
 # đọc DATASET_PATH từ environment (set trên kaggle), nếu không có thì dùng local path
 DATASET_PATH="${DATASET_PATH:-data/iu_xray}"
-N_GPU="${N_GPU:-2}"
+N_GPU="${N_GPU:-1}"
 BATCH_SIZE="${BATCH_SIZE:-22}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 ACCUM_STEPS="${ACCUM_STEPS:-1}"
