@@ -3,7 +3,7 @@ NUM_WORKERS="${NUM_WORKERS:-0}"
 BATCH_SIZE="${BATCH_SIZE:-16}"
 USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
 IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
-USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-true}"
+USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-false}"
 
 python main_test.py \
     --image_dir data/iu_xray/images/ \
@@ -22,7 +22,7 @@ python main_test.py \
     --step_size 10 \
     --gamma 0.8 \
     --num_layers 3 \
-    --swin_num_layers "${SWIN_NUM_LAYERS:-4}" \
+    --swin_num_layers "${SWIN_NUM_LAYERS:-3}" \
     --decoder_num_layers "${DECODER_NUM_LAYERS:-3}" \
     --use_view_type_embedding "$USE_VIEW_TYPE_EMBEDDING" \
     --topk 32 \
