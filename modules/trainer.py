@@ -362,8 +362,30 @@ class Trainer(BaseTrainer):
 
             # --- Forward (with AMP nếu được bật) ---
             with autocast('cuda', enabled=self.use_amp):
-                output = self.model(images, reports_ids, mode='train')
-                loss = self.criterion(output, reports_ids, reports_masks)
+                if epoch >= getattr(self.args, 'scst_start_epoch', 20):
+                    self.model.eval()
+                    with torch.no_grad():
+                        greedy_res, _ = self.model(images, mode='sample', update_opts={'sample_method': 'greedy'})
+                    self.model.train()
+                    sample_res, sample_logprobs = self.model(images, mode='sample', update_opts={'sample_method': 'sample'})
+                    
+                    from modules.reward import get_self_critical_reward
+                    reward_type = getattr(self.args, 'scst_reward', 'cider')
+                    reward, _ = get_self_critical_reward(greedy_res, sample_res, reports_ids, self._get_model().tokenizer, reward_type=reward_type)
+                    reward = reward.to(self.device)
+                    
+                    mask = (sample_res > 0).float()
+                    sample_logprobs = sample_logprobs * mask
+                    scst_loss = - (reward * sample_logprobs.sum(1) / mask.sum(1)).mean()
+                    
+                    output = self.model(images, reports_ids, mode='train')
+                    ce_loss = self.criterion(output, reports_ids, reports_masks)
+                    
+                    rl_weight = getattr(self.args, 'rl_weight', 0.99)
+                    loss = rl_weight * scst_loss + (1.0 - rl_weight) * ce_loss
+                else:
+                    output = self.model(images, reports_ids, mode='train')
+                    loss = self.criterion(output, reports_ids, reports_masks)
 
             # --- Backward (gradient accumulation) ---
             if self.use_amp:
@@ -382,11 +404,12 @@ class Trainer(BaseTrainer):
             train_loss += loss.item()
 
             with torch.no_grad():
-                batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
-                    output.detach(), reports_ids, reports_masks
-                )
-                train_nll_sum += batch_nll_sum.item()
-                train_token_count += batch_token_count.item()
+                if epoch < getattr(self.args, 'scst_start_epoch', 20):
+                    batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
+                        output.detach(), reports_ids, reports_masks
+                    )
+                    train_nll_sum += batch_nll_sum.item()
+                    train_token_count += batch_token_count.item()
 
             if batch_idx % self.args.log_period == 0:
                 self.logger.info('[{}/{}] Step: {}/{}, Training Loss: {:.5f}.'
