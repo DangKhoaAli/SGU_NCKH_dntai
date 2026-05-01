@@ -41,8 +41,8 @@ python main_train.py\
     --use_amp \
     --optim AdamW \
     --lr_scheduler StepLR \
-    --lr_ve 1e-5 \
-    --lr_ed 5e-5 \
+    --lr_ve 1e-4 \
+    --lr_ed 5e-4 \
     --step_size 10 \
     --gamma 0.8 \
     --num_layers 3 \
