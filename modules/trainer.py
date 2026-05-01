@@ -367,7 +367,7 @@ class Trainer(BaseTrainer):
 
             # --- Forward (with AMP nếu được bật) ---
             with autocast('cuda', enabled=self.use_amp):
-                output, _ = self.model(images, reports_ids, 'train')
+                output = self.model(images, reports_ids, 'train')
                 loss = self.criterion(output, reports_ids[:, 1:], reports_masks[:, 1:])
 
             # --- Backward (gradient accumulation) ---
