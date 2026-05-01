@@ -6,7 +6,7 @@ WANDB_PROJECT="NCKH_R2Gen" # Project wandb --> NOT CHANGE!
 # Lấy WANDB_NAME từ environment (nếu được set trên Kaggle), ngược lại dùng tên mặc định
 WANDB_NAME="${WANDB_NAME:-team-scratch-AdamW-StepLR-$(date '+%Y%m%d-%H%M')}"
 
-RESUME_PATH="${RESUME_PATH:-/kaggle/input/models/nadkli2704/modelbest/pytorch/default/1/model_best.pth}"
+RESUME_PATH="${RESUME_PATH:-}"
 
 # update for dataset path in kaggle IU_XRAY_RRG
 # đọc DATASET_PATH từ environment (set trên kaggle), nếu không có thì dùng local path
