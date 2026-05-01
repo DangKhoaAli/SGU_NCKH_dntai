@@ -45,10 +45,7 @@ python main_train.py\
     --weighted_nll_alpha "$WEIGHTED_NLL_ALPHA" \
     --weighted_nll_warmup_epochs "$WEIGHTED_NLL_WARMUP_EPOCHS" \
     --optim AdamW \
-    --weight_decay 1e-4\
-    --lr_scheduler WarmupCosine \
-    --warmup_epochs 5 \
-    --warmup_start_factor 0.1 \
+    --lr_scheduler StepLR \
     --lr_ve 1e-4 \
     --lr_ed 5e-4 \
     --step_size 10 \
