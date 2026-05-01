@@ -50,17 +50,35 @@ class R2DataLoader(DataLoader):
 
     @staticmethod
     def collate_fn(data):
-        image_id_batch, image_batch, report_ids_batch, report_masks_batch, seq_lengths_batch = zip(*data)
+        use_weights = len(data[0]) == 6
+        if use_weights:
+            image_id_batch, image_batch, report_ids_batch, report_masks_batch, report_weights_batch, seq_lengths_batch = zip(*data)
+        else:
+            image_id_batch, image_batch, report_ids_batch, report_masks_batch, seq_lengths_batch = zip(*data)
+
         image_batch = torch.stack(image_batch, 0)
         max_seq_length = max(seq_lengths_batch)
 
         target_batch = np.zeros((len(report_ids_batch), max_seq_length), dtype=int)
         target_masks_batch = np.zeros((len(report_ids_batch), max_seq_length), dtype=int)
+        target_weights_batch = np.zeros((len(report_ids_batch), max_seq_length), dtype=np.float32)
 
         for i, report_ids in enumerate(report_ids_batch):
             target_batch[i, :len(report_ids)] = report_ids
 
         for i, report_masks in enumerate(report_masks_batch):
             target_masks_batch[i, :len(report_masks)] = report_masks
+
+        if use_weights:
+            for i, report_weights in enumerate(report_weights_batch):
+                target_weights_batch[i, :len(report_weights)] = report_weights
+
+            return (
+                image_id_batch,
+                image_batch,
+                torch.LongTensor(target_batch),
+                torch.FloatTensor(target_masks_batch),
+                torch.FloatTensor(target_weights_batch)
+            )
 
         return image_id_batch, image_batch, torch.LongTensor(target_batch), torch.FloatTensor(target_masks_batch)

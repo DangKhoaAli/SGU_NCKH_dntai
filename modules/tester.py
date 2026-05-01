@@ -97,6 +97,16 @@ class Tester(BaseTester):
         super(Tester, self).__init__(model, criterion, metric_ftns, args)
         self.test_dataloader = test_dataloader
 
+    def _unpack_batch(self, batch):
+        if len(batch) == 5:
+            images_id, images, reports_ids, reports_masks, reports_weights = batch
+        elif len(batch) == 4:
+            images_id, images, reports_ids, reports_masks = batch
+            reports_weights = None
+        else:
+            raise ValueError('Expected batch with 4 or 5 items, got {}'.format(len(batch)))
+        return images_id, images, reports_ids, reports_masks, reports_weights
+
     def test(self):
         self.logger.info('Start to evaluate in the test set.')
         self.model.eval()
@@ -104,7 +114,8 @@ class Tester(BaseTester):
         log = dict()
         with torch.no_grad():
             test_gts, test_res = [], []
-            for batch_idx, (images_id, images, reports_ids, reports_masks) in tqdm(enumerate(self.test_dataloader)):
+            for batch_idx, batch in tqdm(enumerate(self.test_dataloader)):
+                images_id, images, reports_ids, reports_masks, reports_weights = self._unpack_batch(batch)
                 images = images.to(self.device, non_blocking=True)
                 reports_ids = reports_ids.to(self.device, non_blocking=True)
                 reports_masks = reports_masks.to(self.device, non_blocking=True)
@@ -139,7 +150,8 @@ class Tester(BaseTester):
         self.model.eval()
         model_core = self._get_model()
         with torch.no_grad():
-            for batch_idx, (images_id, images, reports_ids, reports_masks) in tqdm(enumerate(self.test_dataloader)):
+            for batch_idx, batch in tqdm(enumerate(self.test_dataloader)):
+                images_id, images, reports_ids, reports_masks, reports_weights = self._unpack_batch(batch)
                 images = images.to(self.device, non_blocking=True)
                 reports_ids = reports_ids.to(self.device, non_blocking=True)
                 reports_masks = reports_masks.to(self.device, non_blocking=True)

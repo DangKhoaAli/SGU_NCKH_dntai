@@ -6,6 +6,8 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 
+from .report_weighting import GraphLiteReportWeighter
+
 
 DEFAULT_IUXRAY_VIEW_FILTER_CSV = '/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv'
 LOCAL_IUXRAY_VIEW_FILTER_CSV = os.path.join('logs', 'iu_xray_select_2views_by_cosine.csv')
@@ -19,11 +21,18 @@ class BaseDataset(Dataset):
         self.split = split
         self.tokenizer = tokenizer
         self.transform = transform
+        self.use_weighted_nll = int(getattr(args, 'use_weighted_nll', 0)) == 1
+        self.report_weighter = GraphLiteReportWeighter() if self.use_weighted_nll else None
         self.ann = json.loads(open(self.ann_path, 'r').read())
         self.examples = self.ann[self.split]
         for i in range(len(self.examples)):
             self.examples[i]['ids'] = tokenizer(self.examples[i]['report'])[:self.max_seq_length]
             self.examples[i]['mask'] = [1] * len(self.examples[i]['ids'])
+            if self.use_weighted_nll:
+                self.examples[i]['report_weights'] = self.report_weighter.build_sequence_weights(
+                    self.examples[i]['report'], tokenizer, self.max_seq_length
+                )
+                assert len(self.examples[i]['report_weights']) == len(self.examples[i]['ids'])
 
     def __len__(self):
         return len(self.examples)
@@ -128,6 +137,9 @@ class IuxrayMultiImageDataset(BaseDataset):
         report_ids = example['ids']
         report_masks = example['mask']
         seq_length = len(report_ids)
+        if self.use_weighted_nll:
+            report_weights = example['report_weights']
+            return image_id, image, report_ids, report_masks, report_weights, seq_length
         sample = (image_id, image, report_ids, report_masks, seq_length)
         return sample
 
@@ -144,5 +156,8 @@ class MimiccxrSingleImageDataset(BaseDataset):
         report_ids = example['ids']
         report_masks = example['mask']
         seq_length = len(report_ids)
+        if self.use_weighted_nll:
+            report_weights = example['report_weights']
+            return image_id, image, report_ids, report_masks, report_weights, seq_length
         sample = (image_id, image, report_ids, report_masks, seq_length)
         return sample
