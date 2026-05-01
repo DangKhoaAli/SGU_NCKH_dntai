@@ -61,6 +61,5 @@ python main_train.py\
     --wandb_project "$WANDB_PROJECT" \
     --wandb_name "$WANDB_NAME" \
     --use_cross_view_attention \
-    --use_tag_loss \
-    --tag_loss_weight 0.1 \
+
     ${RESUME_PATH:+--resume "$RESUME_PATH"}
