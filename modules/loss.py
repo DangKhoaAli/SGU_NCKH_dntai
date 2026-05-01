@@ -40,3 +40,19 @@ def compute_nll_sum_and_tokens(output, reports_ids, reports_masks):
     token_count = mask.sum()
 
     return nll_sum, token_count
+
+
+def compute_tag_loss(tag_logits, tag_labels):
+    """
+    Binary Cross-Entropy Loss cho multi-label tag prediction.
+
+    Args:
+        tag_logits : [B, num_tags]  (raw logits, chưa sigmoid)
+        tag_labels : [B, num_tags]  (float 0/1)
+
+    Returns:
+        scalar loss
+    """
+    import torch.nn.functional as F
+    tag_labels = tag_labels.float().to(tag_logits.device)
+    return F.binary_cross_entropy_with_logits(tag_logits, tag_labels)

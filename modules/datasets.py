@@ -5,6 +5,7 @@ import csv
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from modules.tag_labels import extract_tags
 
 
 DEFAULT_IUXRAY_VIEW_FILTER_CSV = '/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv'
@@ -24,6 +25,8 @@ class BaseDataset(Dataset):
         for i in range(len(self.examples)):
             self.examples[i]['ids'] = tokenizer(self.examples[i]['report'])[:self.max_seq_length]
             self.examples[i]['mask'] = [1] * len(self.examples[i]['ids'])
+            # Trích xuất multi-hot tag labels từ report text
+            self.examples[i]['tag_labels'] = extract_tags(self.examples[i]['report'])
 
     def __len__(self):
         return len(self.examples)
@@ -127,8 +130,9 @@ class IuxrayMultiImageDataset(BaseDataset):
         image = torch.stack((image_1, image_2), 0)
         report_ids = example['ids']
         report_masks = example['mask']
+        tag_labels = example['tag_labels']  # list of 0/1, length NUM_TAGS
         seq_length = len(report_ids)
-        sample = (image_id, image, report_ids, report_masks, seq_length)
+        sample = (image_id, image, report_ids, report_masks, seq_length, tag_labels)
         return sample
 
 
@@ -143,6 +147,7 @@ class MimiccxrSingleImageDataset(BaseDataset):
             image = self.transform(image)
         report_ids = example['ids']
         report_masks = example['mask']
+        tag_labels = example['tag_labels']  # list of 0/1, length NUM_TAGS
         seq_length = len(report_ids)
-        sample = (image_id, image, report_ids, report_masks, seq_length)
+        sample = (image_id, image, report_ids, report_masks, seq_length, tag_labels)
         return sample

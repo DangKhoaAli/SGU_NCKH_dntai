@@ -50,7 +50,7 @@ class R2DataLoader(DataLoader):
 
     @staticmethod
     def collate_fn(data):
-        image_id_batch, image_batch, report_ids_batch, report_masks_batch, seq_lengths_batch = zip(*data)
+        image_id_batch, image_batch, report_ids_batch, report_masks_batch, seq_lengths_batch, tag_labels_batch = zip(*data)
         image_batch = torch.stack(image_batch, 0)
         max_seq_length = max(seq_lengths_batch)
 
@@ -63,4 +63,9 @@ class R2DataLoader(DataLoader):
         for i, report_masks in enumerate(report_masks_batch):
             target_masks_batch[i, :len(report_masks)] = report_masks
 
-        return image_id_batch, image_batch, torch.LongTensor(target_batch), torch.FloatTensor(target_masks_batch)
+        # tag_labels_batch: tuple of lists → FloatTensor [B, NUM_TAGS]
+        tag_labels_tensor = torch.tensor(tag_labels_batch, dtype=torch.float32)
+
+        return (image_id_batch, image_batch,
+                torch.LongTensor(target_batch), torch.FloatTensor(target_masks_batch),
+                tag_labels_tensor)

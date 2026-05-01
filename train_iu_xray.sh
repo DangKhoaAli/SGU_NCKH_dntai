@@ -11,8 +11,8 @@ RESUME_PATH="${RESUME_PATH:-/kaggle/input/models/nadkli2704/modelbest/pytorch/de
 # update for dataset path in kaggle IU_XRAY_RRG
 # đọc DATASET_PATH từ environment (set trên kaggle), nếu không có thì dùng local path
 DATASET_PATH="${DATASET_PATH:-data/iu_xray}"
-N_GPU="${N_GPU:-1}"
-BATCH_SIZE="${BATCH_SIZE:-16}"
+N_GPU="${N_GPU:-2}"
+BATCH_SIZE="${BATCH_SIZE:-32}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
 ACCUM_STEPS="${ACCUM_STEPS:-1}"
 USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
@@ -31,7 +31,7 @@ python main_train.py\
     --max_seq_length 60 \
     --threshold 3 \
     --epochs 100 \
-    --scst_start_epoch 0 \
+    --scst_start_epoch 500 \
     --scst_reward cider \
     --rl_weight 0.96 \
     --n_gpu "$N_GPU" \
@@ -60,4 +60,7 @@ python main_train.py\
     --wandb_entity "$WANDB_ENTITY" \
     --wandb_project "$WANDB_PROJECT" \
     --wandb_name "$WANDB_NAME" \
+    --use_cross_view_attention \
+    --use_tag_loss \
+    --tag_loss_weight 0.1 \
     ${RESUME_PATH:+--resume "$RESUME_PATH"}

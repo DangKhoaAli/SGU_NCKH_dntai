@@ -2,7 +2,7 @@ import logging
 import os, time
 import pandas as pd
 from abc import abstractmethod
-from modules.loss import compute_nll_sum_and_tokens
+from modules.loss import compute_nll_sum_and_tokens, compute_tag_loss
 
 import torch
 from torch.amp import GradScaler, autocast
@@ -343,6 +343,8 @@ class Trainer(BaseTrainer):
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.test_dataloader = test_dataloader
+        self.use_tag_loss = getattr(args, 'use_tag_loss', False)
+        self.tag_loss_weight = getattr(args, 'tag_loss_weight', 0.1)
 
     def _train_epoch(self, epoch):
 
@@ -350,12 +352,13 @@ class Trainer(BaseTrainer):
         train_loss = 0
         train_nll_sum = 0.0
         train_token_count = 0.0
+        train_tag_loss_sum = 0.0   # theo dõi tag loss riêng
         accum_steps = getattr(self.args, 'accum_steps', 1)  # gradient accumulation
 
         self.model.train()
         is_dataparallel = isinstance(self.model, torch.nn.DataParallel)
         self.optimizer.zero_grad()  # reset gradient trước epoch
-        for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.train_dataloader):
+        for batch_idx, (images_id, images, reports_ids, reports_masks, tag_labels) in enumerate(self.train_dataloader):
 
             # If using DataParallel, inputs must remain on CPU so DataParallel.scatter
             # can split and send them to each device. If model is not DataParallel,
@@ -364,6 +367,7 @@ class Trainer(BaseTrainer):
                 images = images.to(self.device, non_blocking=True)
                 reports_ids = reports_ids.to(self.device, non_blocking=True)
                 reports_masks = reports_masks.to(self.device, non_blocking=True)
+                tag_labels = tag_labels.to(self.device, non_blocking=True)
 
             # --- Forward (with AMP nếu được bật) ---
             with autocast('cuda', enabled=self.use_amp):
@@ -380,20 +384,24 @@ class Trainer(BaseTrainer):
                     reward = reward.to(self.device)
                     
                     mask = (sample_res > 0).float()
-                    # Gather the log probability of the sampled token at each time step
-                    # sample_res is (B, seq_len), sample_logprobs is (B, seq_len, vocab_size)
                     sample_logprobs = sample_logprobs.gather(2, sample_res.unsqueeze(2)).squeeze(2)
                     sample_logprobs = sample_logprobs * mask
                     scst_loss = - (reward * sample_logprobs.sum(1) / mask.sum(1)).mean()
                     
-                    output = self.model(images, reports_ids, 'train')
+                    output, tag_logits = self.model(images, reports_ids, 'train')
                     ce_loss = self.criterion(output, reports_ids[:, 1:], reports_masks[:, 1:])
                     
                     rl_weight = getattr(self.args, 'rl_weight', 0.9)
                     loss = rl_weight * scst_loss + (1.0 - rl_weight) * ce_loss
                 else:
-                    output = self.model(images, reports_ids, 'train')
+                    output, tag_logits = self.model(images, reports_ids, 'train')
                     loss = self.criterion(output, reports_ids[:, 1:], reports_masks[:, 1:])
+
+                # --- Auxiliary Tag Loss ---
+                if self.use_tag_loss and tag_logits is not None:
+                    t_loss = compute_tag_loss(tag_logits, tag_labels)
+                    loss = loss + self.tag_loss_weight * t_loss
+                    train_tag_loss_sum += t_loss.item()
 
             # --- Backward (gradient accumulation) ---
             if self.use_amp:
@@ -428,6 +436,8 @@ class Trainer(BaseTrainer):
         log = {
             'train_loss': train_nll_sum / max(train_token_count, 1.0)
         }
+        if self.use_tag_loss:
+            log['train_tag_loss'] = train_tag_loss_sum / max(len(self.train_dataloader), 1)
         self.logger.info('[{}/{}] Training Loss: {:.5f}'.format(epoch, self.epochs, log['train_loss']))
 
         
@@ -439,7 +449,7 @@ class Trainer(BaseTrainer):
             val_nll_sum = 0.0
             val_token_count = 0.0
 
-            for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.val_dataloader):
+            for batch_idx, (images_id, images, reports_ids, reports_masks, tag_labels) in enumerate(self.val_dataloader):
                 if not is_dataparallel:
                     images = images.to(self.device, non_blocking=True)
                     reports_ids = reports_ids.to(self.device, non_blocking=True)
@@ -447,7 +457,7 @@ class Trainer(BaseTrainer):
 
                 # teacher-forcing validation
                 with autocast('cuda', enabled=self.use_amp):
-                    output = self.model(images, reports_ids, 'train')
+                    output, _ = self.model(images, reports_ids, 'train')
 
                 batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
                     output, reports_ids[:, 1:], reports_masks[:, 1:]
@@ -461,7 +471,7 @@ class Trainer(BaseTrainer):
 
             model_core = self._get_model()
             val_gts, val_res = [], []
-            for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.val_dataloader):
+            for batch_idx, (images_id, images, reports_ids, reports_masks, tag_labels) in enumerate(self.val_dataloader):
                 if not is_dataparallel:
                     images = images.to(self.device, non_blocking=True)
                     reports_ids = reports_ids.to(self.device, non_blocking=True)
@@ -487,7 +497,7 @@ class Trainer(BaseTrainer):
         self.model.eval()
         with torch.no_grad():
             test_gts, test_res = [], []
-            for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.test_dataloader):
+            for batch_idx, (images_id, images, reports_ids, reports_masks, tag_labels) in enumerate(self.test_dataloader):
                 if not is_dataparallel:
                     images = images.to(self.device, non_blocking=True)
                     reports_ids = reports_ids.to(self.device, non_blocking=True)
