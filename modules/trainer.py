@@ -353,22 +353,17 @@ class Trainer(BaseTrainer):
         accum_steps = getattr(self.args, 'accum_steps', 1)  # gradient accumulation
 
         self.model.train()
-        is_dataparallel = isinstance(self.model, torch.nn.DataParallel)
         self.optimizer.zero_grad()  # reset gradient trước epoch
         for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.train_dataloader):
 
-            # If using DataParallel, inputs must remain on CPU so DataParallel.scatter
-            # can split and send them to each device. If model is not DataParallel,
-            # move tensors to the configured device.
-            if not is_dataparallel:
-                images = images.to(self.device, non_blocking=True)
-                reports_ids = reports_ids.to(self.device, non_blocking=True)
-                reports_masks = reports_masks.to(self.device, non_blocking=True)
+            images = images.to(self.device, non_blocking=True)
+            reports_ids = reports_ids.to(self.device, non_blocking=True)
+            reports_masks = reports_masks.to(self.device, non_blocking=True)
 
             # --- Forward (with AMP nếu được bật) ---
             with autocast('cuda', enabled=self.use_amp):
-                output = self.model(images, reports_ids, 'train')
-                loss = self.criterion(output, reports_ids[:, 1:], reports_masks[:, 1:])
+                output = self.model(images, reports_ids, mode='train')
+                loss = self.criterion(output, reports_ids, reports_masks)
 
             # --- Backward (gradient accumulation) ---
             if self.use_amp:
@@ -388,7 +383,7 @@ class Trainer(BaseTrainer):
 
             with torch.no_grad():
                 batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
-                    output.detach(), reports_ids[:, 1:], reports_masks[:, 1:]
+                    output.detach(), reports_ids, reports_masks
                 )
                 train_nll_sum += batch_nll_sum.item()
                 train_token_count += batch_token_count.item()
@@ -403,6 +398,7 @@ class Trainer(BaseTrainer):
         }
         self.logger.info('[{}/{}] Training Loss: {:.5f}'.format(epoch, self.epochs, log['train_loss']))
 
+        
         self.logger.info('[{}/{}] Start to evaluate in the validation set.'.format(epoch, self.epochs))
         self.model.eval()
         with torch.no_grad():
@@ -412,17 +408,16 @@ class Trainer(BaseTrainer):
             val_token_count = 0.0
 
             for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.val_dataloader):
-                if not is_dataparallel:
-                    images = images.to(self.device, non_blocking=True)
-                    reports_ids = reports_ids.to(self.device, non_blocking=True)
-                    reports_masks = reports_masks.to(self.device, non_blocking=True)
+                images = images.to(self.device, non_blocking=True)
+                reports_ids = reports_ids.to(self.device, non_blocking=True)
+                reports_masks = reports_masks.to(self.device, non_blocking=True)
 
                 # teacher-forcing validation
                 with autocast('cuda', enabled=self.use_amp):
-                    output = self.model(images, reports_ids, 'train')
+                    output = self.model(images, reports_ids, mode='train')
 
                 batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
-                    output, reports_ids[:, 1:], reports_masks[:, 1:]
+                    output, reports_ids, reports_masks
                 )
 
                 val_nll_sum += batch_nll_sum.item()
@@ -434,13 +429,12 @@ class Trainer(BaseTrainer):
             model_core = self._get_model()
             val_gts, val_res = [], []
             for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.val_dataloader):
-                if not is_dataparallel:
-                    images = images.to(self.device, non_blocking=True)
-                    reports_ids = reports_ids.to(self.device, non_blocking=True)
-                    reports_masks = reports_masks.to(self.device, non_blocking=True)
+                images = images.to(self.device, non_blocking=True)
+                reports_ids = reports_ids.to(self.device, non_blocking=True)
+                reports_masks = reports_masks.to(self.device, non_blocking=True)
 
                 with autocast('cuda', enabled=self.use_amp):
-                    output, _ = self.model(images, None, 'sample')
+                    output, _ = self.model(images, mode='sample')
 
                 reports = model_core.tokenizer.decode_batch(output.cpu().numpy())
                 ground_truths = model_core.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())
@@ -460,12 +454,11 @@ class Trainer(BaseTrainer):
         with torch.no_grad():
             test_gts, test_res = [], []
             for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.test_dataloader):
-                if not is_dataparallel:
-                    images = images.to(self.device, non_blocking=True)
-                    reports_ids = reports_ids.to(self.device, non_blocking=True)
-                    reports_masks = reports_masks.to(self.device, non_blocking=True)
+                images = images.to(self.device, non_blocking=True)
+                reports_ids = reports_ids.to(self.device, non_blocking=True)
+                reports_masks = reports_masks.to(self.device, non_blocking=True)
                 with autocast('cuda', enabled=self.use_amp):
-                    output, _ = self.model(images, None, 'sample')
+                    output, _ = self.model(images, mode='sample')
 
                 reports = model_core.tokenizer.decode_batch(output.cpu().numpy())
                 ground_truths = model_core.tokenizer.decode_batch(reports_ids[:, 1:].cpu().numpy())

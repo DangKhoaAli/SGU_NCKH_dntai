@@ -365,6 +365,26 @@ class BaseCMN(AttModel):
             and getattr(args, 'dataset_name', None) == 'iu_xray'
         )
         self.view_type_embedding = nn.Embedding(2, self.d_model) if self.use_view_type_embedding else None
+        self.use_region_prompts = getattr(args, 'use_region_prompts', False)
+        self.num_region_prompts = getattr(args, 'num_region_prompts', 8)
+        if self.use_region_prompts:
+            self.region_prompt_embedding = nn.Embedding(self.num_region_prompts, self.d_model)
+            self.prompt_to_visual_attn = nn.MultiheadAttention(
+                self.d_model,
+                self.num_heads,
+                dropout=self.dropout,
+                batch_first=True,
+            )
+            self.visual_to_prompt_attn = nn.MultiheadAttention(
+                self.d_model,
+                self.num_heads,
+                dropout=self.dropout,
+                batch_first=True,
+            )
+            self.region_prompt_norm = nn.LayerNorm(self.d_model)
+            self.region_visual_norm = nn.LayerNorm(self.d_model)
+            self.region_prompt_dropout = nn.Dropout(self.dropout)
+            self.region_prompt_scale = nn.Parameter(torch.tensor(0.1))
 
         tgt_vocab = self.vocab_size + 1
 
@@ -402,6 +422,36 @@ class BaseCMN(AttModel):
         view_ids[:, half:] = 1
         return att_feats + self.view_type_embedding(view_ids)
 
+    def _add_region_prompt_attention(self, att_feats, att_masks):
+        if not self.use_region_prompts:
+            return att_feats
+
+        batch_size = att_feats.size(0)
+        prompt_ids = torch.arange(
+            self.num_region_prompts,
+            device=att_feats.device,
+            dtype=torch.long,
+        ).unsqueeze(0).expand(batch_size, -1)
+        prompts = self.region_prompt_embedding(prompt_ids)
+
+        key_padding_mask = att_masks == 0 if att_masks is not None else None
+        region_feats, _ = self.prompt_to_visual_attn(
+            query=self.region_prompt_norm(prompts),
+            key=att_feats,
+            value=att_feats,
+            key_padding_mask=key_padding_mask,
+            need_weights=False,
+        )
+        prompts = prompts + self.region_prompt_dropout(region_feats)
+
+        visual_responses, _ = self.visual_to_prompt_attn(
+            query=self.region_visual_norm(att_feats),
+            key=prompts,
+            value=prompts,
+            need_weights=False,
+        )
+        return att_feats + self.region_prompt_scale * self.region_prompt_dropout(visual_responses)
+
     def _prepare_feature(self, fc_feats, att_feats, att_masks):
         att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(fc_feats, att_feats, att_masks)
         memory = self.model.encode(att_feats, att_masks)
@@ -415,6 +465,8 @@ class BaseCMN(AttModel):
 
         if att_masks is None:
             att_masks = att_feats.new_ones(att_feats.shape[:2], dtype=torch.long) # tạo kh có att_mask thì tạo mask là full 1
+
+        att_feats = self._add_region_prompt_attention(att_feats, att_masks)
 
         # Memory querying and responding for visual features
         conditioned_memory_matrix = self._condition_visual_memory(fc_feats)

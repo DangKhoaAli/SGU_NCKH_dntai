@@ -166,7 +166,7 @@ class AttModel(CaptionModel):
         trigrams = []  # will be a list of batch_size dictionaries
 
         seq = fc_feats.new_full((batch_size * sample_n, self.max_seq_length), self.pad_idx, dtype=torch.long)
-        seqLogprobs_list = []
+        seqLogprobs = fc_feats.new_zeros(batch_size * sample_n, self.max_seq_length, self.vocab_size + 1)
         for t in range(self.max_seq_length + 1):
             if t == 0:  # input <bos>
                 it = fc_feats.new_full([batch_size * sample_n], self.bos_idx, dtype=torch.long)
@@ -220,15 +220,11 @@ class AttModel(CaptionModel):
                 logprobs = logprobs * unfinished.unsqueeze(1).float()
                 unfinished = unfinished * (it != self.eos_idx)
             seq[:, t] = it
-            seqLogprobs_list.append(logprobs)
+            seqLogprobs[:, t] = logprobs
             # quit loop if all sequences have finished
             if unfinished.sum() == 0:
                 break
 
-        seqLogprobs = torch.stack(seqLogprobs_list, 1)
-        if seqLogprobs.size(1) < self.max_seq_length:
-            pad = fc_feats.new_zeros(batch_size * sample_n, self.max_seq_length - seqLogprobs.size(1), self.vocab_size + 1)
-            seqLogprobs = torch.cat([seqLogprobs, pad], 1)
         return seq, seqLogprobs
 
     def _diverse_sample(self, fc_feats, att_feats, att_masks=None, opt={}):
