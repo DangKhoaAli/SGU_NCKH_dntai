@@ -105,24 +105,6 @@ def parse_agrs():
     parser.add_argument('--cmm_size', type=int, default=2048, help='the numebr of cmm size.')
     parser.add_argument('--cmm_dim', type=int, default=512, help='the dimension of cmm dimension.')
 
-    # --- Cross-View Attention Fusion ---
-    parser.add_argument('--use_cross_view_attention', action='store_true',
-                        help='enable cross-view attention fusion between the two IU-Xray views.')
-    parser.add_argument('--cross_view_num_heads', type=int, default=8,
-                        help='number of attention heads in CrossViewAttention.')
-
-    # --- Auxiliary Tag Prediction Loss ---
-    parser.add_argument('--use_tag_loss', action='store_true',
-                        help='enable auxiliary multi-label disease tag prediction loss.')
-    parser.add_argument('--tag_loss_weight', type=float, default=0.1,
-                        help='weight (lambda) for the auxiliary tag BCE loss.')
-    parser.add_argument('--num_tags', type=int, default=14,
-                        help='number of disease tag classes for tag prediction.')
-    parser.add_argument('--tag_hidden_dim', type=int, default=1024,
-                        help='hidden dimension of the TagClassifier MLP.')
-    parser.add_argument('--tag_dropout', type=float, default=0.3,
-                        help='dropout rate inside the TagClassifier MLP.')
-
     # Sample related
     parser.add_argument('--sample_method', type=str, default='beam_search', help='the sample methods to sample a report.')
     parser.add_argument('--beam_size', type=int, default=3, help='the beam size when beam searching.')
@@ -143,9 +125,6 @@ def parse_agrs():
     parser.add_argument('--monitor_mode', type=str, default='max', choices=['min', 'max'], help='whether to max or min the metric.')
     parser.add_argument('--monitor_metric', type=str, default='BLEU_4', help='the metric to be monitored.')
     parser.add_argument('--early_stop', type=int, default=50, help='the patience of training.')
-    parser.add_argument('--scst_start_epoch', type=int, default=20, help='the epoch to start SCST training.')
-    parser.add_argument('--scst_reward', type=str, default='cider', help='the reward to use for SCST.')
-    parser.add_argument('--rl_weight', type=float, default=0.99, help='the weight for SCST loss in mixed objective.')
 
     # Optimization
     parser.add_argument('--optim', type=str, default='Adam', help='the type of the optimizer.')

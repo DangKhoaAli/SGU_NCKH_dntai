@@ -31,23 +31,25 @@ python main_train.py\
     --max_seq_length 60 \
     --threshold 3 \
     --epochs 100 \
-    --scst_start_epoch 500 \
-    --scst_reward cider \
-    --rl_weight 0.96 \
     --n_gpu "$N_GPU" \
     --batch_size "$BATCH_SIZE" \
     --num_workers "$NUM_WORKERS" \
     --accum_steps "$ACCUM_STEPS" \
     --use_amp \
     --optim AdamW \
-    --lr_scheduler StepLR \
+    --visual_extractor "${VISUAL_EXTRACTOR:-densenet121}" \
+    --d_vf "${D_VF:-1024}" \
+    --lr_scheduler ReduceLROnPlateau \
     --lr_ve 1e-4 \
     --lr_ed 5e-4 \
-    --step_size 10 \
-    --gamma 0.8 \
+    --reduce_on_plateau_factor 0.5 \
+    --reduce_on_plateau_patience 3 \
+    --reduce_on_plateau_threshold 1e-4 \
+    --reduce_on_plateau_cooldown 0 \
     --num_layers 3 \
     --swin_num_layers "${SWIN_NUM_LAYERS:-3}" \
-    --decoder_num_layers "${DECODER_NUM_LAYERS:-3}" \
+    --decoder_num_layers "${DECODER_NUM_LAYERS:-4}" \
+    --drop_prob_lm "${DROP_PROB_LM:-0.35}" \
     --use_view_type_embedding "$USE_VIEW_TYPE_EMBEDDING" \
     --early_stop 50 \
     --topk 32 \
@@ -60,6 +62,4 @@ python main_train.py\
     --wandb_entity "$WANDB_ENTITY" \
     --wandb_project "$WANDB_PROJECT" \
     --wandb_name "$WANDB_NAME" \
-    --use_cross_view_attention \
-
     ${RESUME_PATH:+--resume "$RESUME_PATH"}
