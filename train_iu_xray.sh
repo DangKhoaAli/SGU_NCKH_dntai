@@ -23,6 +23,9 @@ NUM_REGION_PROMPTS="${NUM_REGION_PROMPTS:-8}"
 USE_WEIGHTED_NLL="${USE_WEIGHTED_NLL:-1}"  # 0: baseline Masked NLL, 1: GraphLite Weighted Masked NLL
 WEIGHTED_NLL_ALPHA="${WEIGHTED_NLL_ALPHA:-0.5}"
 WEIGHTED_NLL_WARMUP_EPOCHS="${WEIGHTED_NLL_WARMUP_EPOCHS:-10}"
+USE_TFIDF_WEIGHT="${USE_TFIDF_WEIGHT:-0}"
+TFIDF_ALPHA="${TFIDF_ALPHA:-0.05}"
+TFIDF_MAX_FACTOR="${TFIDF_MAX_FACTOR:-1.10}"
 
 # Giam memory fragmentation tren CUDA
 export PYTORCH_ALLOC_CONF=expandable_segments:True
@@ -44,6 +47,9 @@ python main_train.py\
     --use_weighted_nll "$USE_WEIGHTED_NLL" \
     --weighted_nll_alpha "$WEIGHTED_NLL_ALPHA" \
     --weighted_nll_warmup_epochs "$WEIGHTED_NLL_WARMUP_EPOCHS" \
+    --use_tfidf_weight "$USE_TFIDF_WEIGHT" \
+    --tfidf_alpha "$TFIDF_ALPHA" \
+    --tfidf_max_factor "$TFIDF_MAX_FACTOR" \
     --optim AdamW \
     --lr_scheduler StepLR \
     --lr_ve 1e-4 \

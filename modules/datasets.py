@@ -1,6 +1,8 @@
 import json
 import os
 import csv
+import math
+from collections import Counter
 
 import torch
 from PIL import Image
@@ -22,9 +24,11 @@ class BaseDataset(Dataset):
         self.tokenizer = tokenizer
         self.transform = transform
         self.use_weighted_nll = int(getattr(args, 'use_weighted_nll', 0)) == 1
-        self.report_weighter = GraphLiteReportWeighter() if self.use_weighted_nll else None
+        self.use_tfidf_weight = int(getattr(args, 'use_tfidf_weight', 0)) == 1
         self.ann = json.loads(open(self.ann_path, 'r').read())
         self.examples = self.ann[self.split]
+        self.idf_dict = self._build_train_idf() if self.use_weighted_nll and self.use_tfidf_weight else None
+        self.report_weighter = self._build_report_weighter(args)
         for i in range(len(self.examples)):
             self.examples[i]['ids'] = tokenizer(self.examples[i]['report'])[:self.max_seq_length]
             self.examples[i]['mask'] = [1] * len(self.examples[i]['ids'])
@@ -36,6 +40,33 @@ class BaseDataset(Dataset):
 
     def __len__(self):
         return len(self.examples)
+
+    def _build_train_idf(self):
+        train_examples = self.ann.get('train', [])
+        num_documents = len(train_examples)
+        if num_documents == 0:
+            return {}
+
+        doc_freq = Counter()
+        for example in train_examples:
+            tokens = self.tokenizer.clean_report(example['report']).split()
+            doc_freq.update(set(tokens))
+
+        return {
+            token: math.log((num_documents + 1) / (df + 1)) + 1
+            for token, df in doc_freq.items()
+        }
+
+    def _build_report_weighter(self, args):
+        if not self.use_weighted_nll:
+            return None
+
+        return GraphLiteReportWeighter(
+            use_tfidf_weight=self.use_tfidf_weight,
+            idf_dict=self.idf_dict,
+            tfidf_alpha=getattr(args, 'tfidf_alpha', 0.05),
+            tfidf_max_factor=getattr(args, 'tfidf_max_factor', 1.10),
+        )
 
 
 class IuxrayMultiImageDataset(BaseDataset):

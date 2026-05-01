@@ -74,6 +74,12 @@ def parse_agrs():
                         help='scale factor for graph-guided weights: effective_w = 1 + alpha * (raw_w - 1)')
     parser.add_argument('--weighted_nll_warmup_epochs', type=int, default=0,
                         help='linearly warm up weighted_nll_alpha during first N epochs')
+    parser.add_argument('--use_tfidf_weight', type=int, default=0,
+                        help='whether to multiply GraphLite weights by a clipped TF-IDF factor')
+    parser.add_argument('--tfidf_alpha', type=float, default=0.05,
+                        help='strength of normalized TF-IDF factor')
+    parser.add_argument('--tfidf_max_factor', type=float, default=1.10,
+                        help='maximum multiplicative TF-IDF factor')
 
     # Model settings (for visual extractor)
     parser.add_argument('--visual_extractor', type=str, default='resnet101', help='the visual extractor to be used.')
