@@ -40,7 +40,7 @@ python main_train.py\
     --accum_steps "$ACCUM_STEPS" \
     --use_amp \
     --use_weighted_nll "$USE_WEIGHTED_NLL" \
-    --optim Adam \
+    --optim AdamW \
     --weight_decay 1e-4\
     --lr_scheduler WarmupCosine \
     --warmup_epochs 5 \
