@@ -20,7 +20,7 @@ IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooc
 USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-false}"
 USE_REGION_PROMPTS="${USE_REGION_PROMPTS:-false}"
 NUM_REGION_PROMPTS="${NUM_REGION_PROMPTS:-8}"
-USE_WEIGHTED_NLL=1  # 0: baseline Masked NLL, 1: GraphLite Weighted Masked NLL
+USE_WEIGHTED_NLL=0  # 0: baseline Masked NLL, 1: GraphLite Weighted Masked NLL
 
 # Giam memory fragmentation tren CUDA
 export PYTORCH_ALLOC_CONF=expandable_segments:True
