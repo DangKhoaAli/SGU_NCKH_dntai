@@ -4,7 +4,7 @@
 WANDB_ENTITY="phucga15062005" # team wandb  --> NOT CHANGE!
 WANDB_PROJECT="NCKH_R2Gen" # Project wandb --> NOT CHANGE!
 # Lấy WANDB_NAME từ environment (nếu được set trên Kaggle), ngược lại dùng tên mặc định
-WANDB_NAME="${WANDB_NAME:-team-scratch-AdamW-StepLR-$(date '+%Y%m%d-%H%M')}"
+WANDB_NAME="${WANDB_NAME:-a3net_graphlite_alpha05_warmup10-$(date '+%Y%m%d-%H%M')}"
 
 RESUME_PATH="${RESUME_PATH:-}"
 
@@ -20,7 +20,9 @@ IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooc
 USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-false}"
 USE_REGION_PROMPTS="${USE_REGION_PROMPTS:-false}"
 NUM_REGION_PROMPTS="${NUM_REGION_PROMPTS:-8}"
-USE_WEIGHTED_NLL=1  # 0: baseline Masked NLL, 1: GraphLite Weighted Masked NLL
+USE_WEIGHTED_NLL="${USE_WEIGHTED_NLL:-1}"  # 0: baseline Masked NLL, 1: GraphLite Weighted Masked NLL
+WEIGHTED_NLL_ALPHA="${WEIGHTED_NLL_ALPHA:-0.5}"
+WEIGHTED_NLL_WARMUP_EPOCHS="${WEIGHTED_NLL_WARMUP_EPOCHS:-10}"
 
 # Giam memory fragmentation tren CUDA
 export PYTORCH_ALLOC_CONF=expandable_segments:True
@@ -40,6 +42,8 @@ python main_train.py\
     --accum_steps "$ACCUM_STEPS" \
     --use_amp \
     --use_weighted_nll "$USE_WEIGHTED_NLL" \
+    --weighted_nll_alpha "$WEIGHTED_NLL_ALPHA" \
+    --weighted_nll_warmup_epochs "$WEIGHTED_NLL_WARMUP_EPOCHS" \
     --optim AdamW \
     --weight_decay 1e-4\
     --lr_scheduler WarmupCosine \

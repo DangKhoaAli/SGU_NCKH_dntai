@@ -70,6 +70,10 @@ def parse_agrs():
     parser.add_argument('--use_amp', action='store_true', help='enable Automatic Mixed Precision (FP16) to save VRAM.')
     parser.add_argument('--use_weighted_nll', type=int, default=0,
                         help='whether to use graph-guided weighted masked NLL')
+    parser.add_argument('--weighted_nll_alpha', type=float, default=1.0,
+                        help='scale factor for graph-guided weights: effective_w = 1 + alpha * (raw_w - 1)')
+    parser.add_argument('--weighted_nll_warmup_epochs', type=int, default=0,
+                        help='linearly warm up weighted_nll_alpha during first N epochs')
 
     # Model settings (for visual extractor)
     parser.add_argument('--visual_extractor', type=str, default='resnet101', help='the visual extractor to be used.')

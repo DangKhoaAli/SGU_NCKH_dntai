@@ -344,6 +344,45 @@ class Trainer(BaseTrainer):
         self.val_dataloader = val_dataloader
         self.test_dataloader = test_dataloader
 
+    def _get_current_weight_alpha(self, epoch):
+        if not getattr(self.args, 'use_weighted_nll', 0):
+            return 0.0
+
+        target_alpha = float(getattr(self.args, 'weighted_nll_alpha', 1.0))
+        warmup_epochs = int(getattr(self.args, 'weighted_nll_warmup_epochs', 0))
+
+        if warmup_epochs > 0:
+            progress = min(1.0, max(0.0, epoch / float(warmup_epochs)))
+            return target_alpha * progress
+
+        return target_alpha
+
+    def _log_weight_stats(self, reports_weights, reports_masks, output, weight_alpha):
+        if reports_weights is None:
+            return
+
+        weights = reports_weights[:, 1:][:, :output.size(1)].float().to(output.device)
+        mask = reports_masks[:, 1:][:, :output.size(1)].float().to(output.device)
+        valid = mask > 0
+        if not torch.any(valid):
+            return
+
+        effective_weights = 1.0 + float(weight_alpha) * (weights - 1.0)
+        effective_weights = torch.clamp(effective_weights, min=1.0)
+        raw_valid = weights[valid]
+        effective_valid = effective_weights[valid]
+        ratio_gt_one = (effective_valid > 1.0).float().mean().item()
+        self.logger.info(
+            'Weighted NLL stats: raw_mean={:.4f}, raw_max={:.4f}, '
+            'effective_mean={:.4f}, effective_max={:.4f}, effective_gt1_ratio={:.4f}'.format(
+                raw_valid.mean().item(),
+                raw_valid.max().item(),
+                effective_valid.mean().item(),
+                effective_valid.max().item(),
+                ratio_gt_one,
+            )
+        )
+
     def _unpack_batch(self, batch):
         if len(batch) == 5:
             images_id, images, reports_ids, reports_masks, reports_weights = batch
@@ -357,6 +396,14 @@ class Trainer(BaseTrainer):
     def _train_epoch(self, epoch):
 
         self.logger.info('[{}/{}] Start to train in the training set.'.format(epoch, self.epochs))
+        current_weight_alpha = self._get_current_weight_alpha(epoch)
+        self.logger.info(
+            'Weighted NLL alpha: current={:.6f}, target={:.6f}, warmup_epochs={}'.format(
+                current_weight_alpha,
+                float(getattr(self.args, 'weighted_nll_alpha', 1.0)),
+                int(getattr(self.args, 'weighted_nll_warmup_epochs', 0)),
+            )
+        )
         train_loss = 0
         train_nll_sum = 0.0
         train_token_count = 0.0
@@ -376,7 +423,16 @@ class Trainer(BaseTrainer):
             # --- Forward (with AMP nếu được bật) ---
             with autocast('cuda', enabled=self.use_amp):
                 output = self.model(images, reports_ids, mode='train')
-                loss = self.criterion(output, reports_ids, reports_masks, reports_weights)
+                loss = self.criterion(
+                    output,
+                    reports_ids,
+                    reports_masks,
+                    reports_weights,
+                    weight_alpha=current_weight_alpha,
+                )
+
+            if batch_idx == 0:
+                self._log_weight_stats(reports_weights, reports_masks, output.detach(), current_weight_alpha)
 
             # --- Backward (gradient accumulation) ---
             if self.use_amp:
@@ -396,7 +452,11 @@ class Trainer(BaseTrainer):
 
             with torch.no_grad():
                 batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
-                    output.detach(), reports_ids, reports_masks, reports_weights
+                    output.detach(),
+                    reports_ids,
+                    reports_masks,
+                    reports_weights,
+                    weight_alpha=current_weight_alpha,
                 )
                 train_nll_sum += batch_nll_sum.item()
                 train_token_count += batch_token_count.item()
@@ -407,7 +467,10 @@ class Trainer(BaseTrainer):
                                          train_loss / (batch_idx + 1)))
 
         log = {
-            'train_loss': train_nll_sum / max(train_token_count, 1.0)
+            'train_loss': train_nll_sum / max(train_token_count, 1.0),
+            'weighted_nll_alpha_current': current_weight_alpha,
+            'weighted_nll_alpha_target': float(getattr(self.args, 'weighted_nll_alpha', 1.0)),
+            'weighted_nll_warmup_epochs': int(getattr(self.args, 'weighted_nll_warmup_epochs', 0)),
         }
         self.logger.info('[{}/{}] Training Loss: {:.5f}'.format(epoch, self.epochs, log['train_loss']))
 
@@ -433,7 +496,11 @@ class Trainer(BaseTrainer):
                     output = self.model(images, reports_ids, mode='train')
 
                 batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
-                    output, reports_ids, reports_masks, reports_weights
+                    output,
+                    reports_ids,
+                    reports_masks,
+                    reports_weights,
+                    weight_alpha=current_weight_alpha,
                 )
 
                 val_nll_sum += batch_nll_sum.item()
