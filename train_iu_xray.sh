@@ -31,9 +31,9 @@ python main_train.py\
     --max_seq_length 60 \
     --threshold 3 \
     --epochs 100 \
-    --scst_start_epoch 18 \
+    --scst_start_epoch 0 \
     --scst_reward cider \
-    --rl_weight 0.99 \
+    --rl_weight 0.96 \
     --n_gpu "$N_GPU" \
     --batch_size "$BATCH_SIZE" \
     --num_workers "$NUM_WORKERS" \
@@ -41,8 +41,8 @@ python main_train.py\
     --use_amp \
     --optim AdamW \
     --lr_scheduler StepLR \
-    --lr_ve 1e-4 \
-    --lr_ed 5e-4 \
+    --lr_ve 1e-5 \
+    --lr_ed 5e-5 \
     --step_size 10 \
     --gamma 0.8 \
     --num_layers 3 \

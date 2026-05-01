@@ -387,13 +387,13 @@ class Trainer(BaseTrainer):
                     scst_loss = - (reward * sample_logprobs.sum(1) / mask.sum(1)).mean()
                     
                     output = self.model(images, reports_ids, 'train')
-                    ce_loss = self.criterion(output, reports_ids, reports_masks)
+                    ce_loss = self.criterion(output, reports_ids[:, 1:], reports_masks[:, 1:])
                     
-                    rl_weight = getattr(self.args, 'rl_weight', 0.99)
+                    rl_weight = getattr(self.args, 'rl_weight', 0.9)
                     loss = rl_weight * scst_loss + (1.0 - rl_weight) * ce_loss
                 else:
                     output = self.model(images, reports_ids, 'train')
-                    loss = self.criterion(output, reports_ids, reports_masks)
+                    loss = self.criterion(output, reports_ids[:, 1:], reports_masks[:, 1:])
 
             # --- Backward (gradient accumulation) ---
             if self.use_amp:
@@ -412,12 +412,13 @@ class Trainer(BaseTrainer):
             train_loss += loss.item()
 
             with torch.no_grad():
-                if epoch < getattr(self.args, 'scst_start_epoch', 20):
-                    batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
-                        output.detach(), reports_ids, reports_masks
-                    )
-                    train_nll_sum += batch_nll_sum.item()
-                    train_token_count += batch_token_count.item()
+                # Always compute token-level stats for logging, even during SCST
+                # Ensure we use shifted indices ([:, 1:]) to match model output
+                batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
+                    output.detach(), reports_ids[:, 1:], reports_masks[:, 1:]
+                )
+                train_nll_sum += batch_nll_sum.item()
+                train_token_count += batch_token_count.item()
 
             if batch_idx % self.args.log_period == 0:
                 self.logger.info('[{}/{}] Step: {}/{}, Training Loss: {:.5f}.'
@@ -449,7 +450,7 @@ class Trainer(BaseTrainer):
                     output = self.model(images, reports_ids, 'train')
 
                 batch_nll_sum, batch_token_count = compute_nll_sum_and_tokens(
-                    output, reports_ids, reports_masks
+                    output, reports_ids[:, 1:], reports_masks[:, 1:]
                 )
 
                 val_nll_sum += batch_nll_sum.item()
