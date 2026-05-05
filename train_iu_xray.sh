@@ -21,6 +21,7 @@ USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-false}"
 USE_REGION_PROMPTS="${USE_REGION_PROMPTS:-false}"
 NUM_REGION_PROMPTS="${NUM_REGION_PROMPTS:-8}"
 VISUAL_EXTRACTOR="${VISUAL_EXTRACTOR:-resnet101_swin_t}"
+VISUAL_FUSION="${VISUAL_FUSION:-gated}"
 D_VF="${D_VF:-768}"
 
 # Giam memory fragmentation tren CUDA
@@ -41,6 +42,7 @@ python main_train.py\
     --accum_steps "$ACCUM_STEPS" \
     --use_amp \
     --visual_extractor "$VISUAL_EXTRACTOR" \
+    --visual_fusion "$VISUAL_FUSION" \
     --d_vf "$D_VF" \
     --optim AdamW \
     --lr_scheduler StepLR \

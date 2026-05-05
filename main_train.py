@@ -72,6 +72,8 @@ def parse_agrs():
     # Model settings (for visual extractor)
     parser.add_argument('--visual_extractor', type=str, default='resnet101_swin_t', help='the visual extractor to be used.')
     parser.add_argument('--visual_extractor_pretrained', type=bool, default=True, help='whether to load the pretrained visual extractor')
+    parser.add_argument('--visual_fusion', type=str, default='gated', choices=['concat', 'gated'],
+                        help='fusion strategy for ensemble visual extractors.')
     parser.add_argument('--freeze_visual_extractor', action='store_true',
                         help='freeze the visual extractor backbone and train only CMN/encoder/decoder.')
     parser.add_argument('--visual_unfreeze_epoch', type=int, default=0,

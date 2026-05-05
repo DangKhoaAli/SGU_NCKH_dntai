@@ -9,6 +9,7 @@ class VisualExtractor(nn.Module):
         self.visual_extractor = args.visual_extractor
         self.pretrained = args.visual_extractor_pretrained
         self.output_dim = args.d_vf
+        self.visual_fusion = getattr(args, 'visual_fusion', 'gated')
         self.is_ensemble = self.visual_extractor in (
             'resnet101_swin_t',
             'resnet_swin_t',
@@ -22,7 +23,14 @@ class VisualExtractor(nn.Module):
             self.resnet_model = nn.Sequential(*list(resnet.children())[:-2])
             self.swin_model = nn.Sequential(swin.features, swin.norm)
             self.avg_fnt = torch.nn.AdaptiveAvgPool2d((1, 1))
-            self.fusion_proj = nn.Linear(2048 + 768, self.output_dim)
+            if self.visual_fusion == 'concat':
+                self.fusion_proj = nn.Linear(2048 + 768, self.output_dim)
+            elif self.visual_fusion == 'gated':
+                self.resnet_proj = nn.Linear(2048, self.output_dim)
+                self.swin_proj = nn.Linear(768, self.output_dim)
+                self.fusion_gate = nn.Linear(self.output_dim * 2, 1)
+            else:
+                raise ValueError(f'Unsupported visual_fusion: {self.visual_fusion}')
             return
 
         model = self._build_backbone(self.visual_extractor)
@@ -60,9 +68,26 @@ class VisualExtractor(nn.Module):
         if self.is_ensemble:
             resnet_patch_feats, resnet_avg_feats = self._forward_resnet(images)
             swin_patch_feats, swin_avg_feats = self._forward_swin(images)
-            patch_feats = torch.cat((resnet_patch_feats, swin_patch_feats), dim=-1)
-            avg_feats = torch.cat((resnet_avg_feats, swin_avg_feats), dim=-1)
-            return self.fusion_proj(patch_feats), self.fusion_proj(avg_feats)
+
+            if self.visual_fusion == 'concat':
+                patch_feats = torch.cat((resnet_patch_feats, swin_patch_feats), dim=-1)
+                avg_feats = torch.cat((resnet_avg_feats, swin_avg_feats), dim=-1)
+                return self.fusion_proj(patch_feats), self.fusion_proj(avg_feats)
+
+            resnet_patch_feats = self.resnet_proj(resnet_patch_feats)
+            swin_patch_feats = self.swin_proj(swin_patch_feats)
+            patch_gate = torch.sigmoid(
+                self.fusion_gate(torch.cat((resnet_patch_feats, swin_patch_feats), dim=-1))
+            )
+            patch_feats = patch_gate * resnet_patch_feats + (1 - patch_gate) * swin_patch_feats
+
+            resnet_avg_feats = self.resnet_proj(resnet_avg_feats)
+            swin_avg_feats = self.swin_proj(swin_avg_feats)
+            avg_gate = torch.sigmoid(
+                self.fusion_gate(torch.cat((resnet_avg_feats, swin_avg_feats), dim=-1))
+            )
+            avg_feats = avg_gate * resnet_avg_feats + (1 - avg_gate) * swin_avg_feats
+            return patch_feats, avg_feats
 
         patch_feats = self.model(images)
 
@@ -89,5 +114,6 @@ class VisualExtractor(nn.Module):
         patch_feats: [B,H*W,1024]
         avg_feats: [B,1024]
     resnet101_swin_t:
-        concat [2048+768] -> project to args.d_vf
+        concat: [2048+768] -> project to args.d_vf
+        gated: resnet/swin -> args.d_vf, then patch-wise scalar gate
     """
