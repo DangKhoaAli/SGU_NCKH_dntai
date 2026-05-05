@@ -20,6 +20,8 @@ IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooc
 USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-false}"
 USE_REGION_PROMPTS="${USE_REGION_PROMPTS:-false}"
 NUM_REGION_PROMPTS="${NUM_REGION_PROMPTS:-8}"
+VISUAL_EXTRACTOR="${VISUAL_EXTRACTOR:-swin_t}"
+D_VF="${D_VF:-768}"
 
 # Giam memory fragmentation tren CUDA
 export PYTORCH_ALLOC_CONF=expandable_segments:True
@@ -38,6 +40,8 @@ python main_train.py\
     --num_workers "$NUM_WORKERS" \
     --accum_steps "$ACCUM_STEPS" \
     --use_amp \
+    --visual_extractor "$VISUAL_EXTRACTOR" \
+    --d_vf "$D_VF" \
     --optim AdamW \
     --lr_scheduler StepLR \
     --lr_ve 1e-4 \

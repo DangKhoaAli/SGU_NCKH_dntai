@@ -6,6 +6,8 @@ python main_train.py \
     --threshold 10 \
     --epochs 30 \
     --batch_size 16 \
+    --visual_extractor "${VISUAL_EXTRACTOR:-swin_t}" \
+    --d_vf "${D_VF:-768}" \
     --lr_ve 1e-4 \
     --lr_ed 5e-4 \
     --step_size 3 \
