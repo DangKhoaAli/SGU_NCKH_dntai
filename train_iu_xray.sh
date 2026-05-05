@@ -12,12 +12,12 @@ RESUME_PATH="${RESUME_PATH:-}"
 # đọc DATASET_PATH từ environment (set trên kaggle), nếu không có thì dùng local path
 DATASET_PATH="${DATASET_PATH:-data/iu_xray}"
 N_GPU="${N_GPU:-2}"
-BATCH_SIZE="${BATCH_SIZE:-32}"
+BATCH_SIZE="${BATCH_SIZE:-16}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
-ACCUM_STEPS="${ACCUM_STEPS:-1}"
+ACCUM_STEPS="${ACCUM_STEPS:-2}"
 USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
 IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
-USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-false}"
+USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-true}"
 USE_REGION_PROMPTS="${USE_REGION_PROMPTS:-false}"
 NUM_REGION_PROMPTS="${NUM_REGION_PROMPTS:-8}"
 VISUAL_EXTRACTOR="${VISUAL_EXTRACTOR:-resnet101_swin_t}"
@@ -46,7 +46,7 @@ python main_train.py\
     --d_vf "$D_VF" \
     --optim AdamW \
     --lr_scheduler StepLR \
-    --lr_ve 1e-4 \
+    --lr_ve 5e-5 \
     --lr_ed 5e-4 \
     --step_size 10 \
     --gamma 0.8 \
