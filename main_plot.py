@@ -44,7 +44,7 @@ def parse_agrs():
     parser.add_argument('--batch_size', type=int, default=16, help='the number of samples for a batch')
 
     # Model settings (for visual extractor)
-    parser.add_argument('--visual_extractor', type=str, default='swin_t', help='the visual extractor to be used.')
+    parser.add_argument('--visual_extractor', type=str, default='resnet101_swin_t', help='the visual extractor to be used.')
     parser.add_argument('--visual_extractor_pretrained', type=bool, default=True, help='whether to load the pretrained visual extractor')
 
     # Model settings (for Transformer)

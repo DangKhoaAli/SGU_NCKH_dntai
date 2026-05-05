@@ -70,7 +70,7 @@ def parse_agrs():
     parser.add_argument('--use_amp', action='store_true', help='enable Automatic Mixed Precision (FP16) to save VRAM.')
 
     # Model settings (for visual extractor)
-    parser.add_argument('--visual_extractor', type=str, default='swin_t', help='the visual extractor to be used.')
+    parser.add_argument('--visual_extractor', type=str, default='resnet101_swin_t', help='the visual extractor to be used.')
     parser.add_argument('--visual_extractor_pretrained', type=bool, default=True, help='whether to load the pretrained visual extractor')
     parser.add_argument('--freeze_visual_extractor', action='store_true',
                         help='freeze the visual extractor backbone and train only CMN/encoder/decoder.')
