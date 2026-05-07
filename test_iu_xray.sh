@@ -4,6 +4,22 @@ BATCH_SIZE="${BATCH_SIZE:-16}"
 USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
 IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
 
+
+# -----------------------------------------------------------------------
+# Chế độ dịch mẫu nhanh (demo) — chỉ set 1 trong 3 biến bên dưới.
+# Nếu không set biến nào → chạy full test + tính metrics như bình thường.
+#
+#   DEMO_FOLDER_IDS : tên folder(s) chứa ảnh (ưu tiên cao nhất)
+#                     Ví dụ: DEMO_FOLDER_IDS="CXR1_1_IM-0001 CXR3_1_IM-0005"
+#   DEMO_N          : dịch N mẫu đầu tiên trong test set
+#                     Ví dụ: DEMO_N=5
+#   DEMO_INDICES    : dịch các mẫu theo index trong test set
+#                     Ví dụ: DEMO_INDICES="0 3 7"
+# -----------------------------------------------------------------------
+DEMO_FOLDER_IDS="${DEMO_FOLDER_IDS:-}"
+DEMO_N="${DEMO_N:-}"
+DEMO_INDICES="${DEMO_INDICES:-}"
+
 python main_test.py \
     --image_dir data/iu_xray/images/ \
     --ann_path data/iu_xray/annotation.json \
@@ -30,4 +46,7 @@ python main_test.py \
     --beam_size 3 \
     --save_dir results/iu_xray/ \
     --log_period 50 \
-    --load data/model_best.pth
+    --load data/model_best.pth \
+    ${DEMO_FOLDER_IDS:+--demo_folder_ids $DEMO_FOLDER_IDS} \
+    ${DEMO_N:+--demo_n $DEMO_N} \
+    ${DEMO_INDICES:+--demo_indices $DEMO_INDICES}

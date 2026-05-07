@@ -113,6 +113,21 @@ def parse_agrs():
     parser.add_argument('--resume', type=str, help='whether to resume the training from existing checkpoints.')
     parser.add_argument('--load', type=str, help='whether to load the pre-trained model.')
 
+
+    # Demo / quick translation (không chạy full test + metrics)
+    parser.add_argument('--demo_n', type=int, default=None,
+                        help='Nếu truyền số này, chỉ dịch và in ra N mẫu đầu tiên trong test set '
+                             'thay vì chạy đánh giá toàn bộ. Ví dụ: --demo_n 5')
+    parser.add_argument('--demo_indices', type=int, nargs='+', default=None,
+                        help='Danh sách các index cụ thể trong test set cần dịch và in ra. '
+                             'Ưu tiên hơn --demo_n nếu truyền cả hai. '
+                             'Ví dụ: --demo_indices 0 3 7')
+    parser.add_argument('--demo_folder_ids', type=str, nargs='+', default=None,
+                        help='Tên folder chứa ảnh của mẫu cần dịch (trường id trong annotation). '
+                             'Ưu tiên cao nhất, bỏ qua --demo_n và --demo_indices. '
+                             'Ví dụ: --demo_folder_ids CXR1_1_IM-0001 CXR3_1_IM-0005')
+
+
     args = parser.parse_args()
     return args
 
@@ -140,9 +155,20 @@ def main():
     criterion = compute_loss
     metrics = compute_scores
 
-    # build trainer and start to train
+    # build tester
     tester = Tester(model, criterion, metrics, args, test_dataloader)
-    tester.test()
+    # --- Chế độ dịch mẫu nhanh (demo) ---
+    if args.demo_folder_ids is not None:
+        # Ưu tiên cao nhất: dịch theo tên folder
+        tester.translate_by_folder_id(args.demo_folder_ids)
+    elif args.demo_indices is not None or args.demo_n is not None:
+        tester.translate_samples(
+            n=args.demo_n,
+            indices=args.demo_indices,
+        )
+    else:
+        # Chế độ mặc định: đánh giá toàn bộ test set và tính metrics
+        tester.test()
 
 
 if __name__ == '__main__':

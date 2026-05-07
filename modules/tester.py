@@ -124,6 +124,126 @@ class Tester(BaseTester):
             test_gts.to_csv(os.path.join(self.save_dir, "gts.csv"), index=False, header=False)
 
         return log
+        
+    def translate_by_folder_id(self, folder_ids):
+        """
+        Dịch các mẫu có ``image_id`` (tên folder chứa ảnh) nằm trong ``folder_ids``.
+        Args:
+            folder_ids (list[str]): Danh sách tên folder cần dịch.
+                Ví dụ: ['CXR1_1_IM-0001', 'CXR3_1_IM-0005']
+        Cách dùng:
+            tester.translate_by_folder_id(['CXR1_1_IM-0001', 'CXR3_1_IM-0005'])
+        """
+        self.logger.info('=== Chế độ dịch theo folder ID ===')
+        self.model.eval()
+        model_core = self._get_model()
+        target_set = set(folder_ids)
+        found = {}   # folder_id -> (gt, pred)
+        with torch.no_grad():
+            for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.test_dataloader):
+                # Lọc các vị trí trong batch khớp với folder_ids cần tìm
+                local_mask = [i for i, fid in enumerate(images_id) if fid in target_set]
+                if not local_mask:
+                    if len(found) >= len(target_set):
+                        break
+                    continue
+                sel_images = images[local_mask].to(self.device, non_blocking=True)
+                sel_ids    = reports_ids[local_mask].to(self.device, non_blocking=True)
+                output, _ = self.model(sel_images, mode='sample')
+                preds = model_core.tokenizer.decode_batch(output.cpu().numpy())
+                gts   = model_core.tokenizer.decode_batch(sel_ids[:, 1:].cpu().numpy())
+                for li, gi in enumerate(local_mask):
+                    fid = images_id[gi]
+                    if fid not in found:  # tránh ghi đè nếu trùng batch
+                        found[fid] = (gts[li], preds[li])
+                if len(found) >= len(target_set):
+                    break
+        # Cảnh báo nếu không tìm thấy
+        not_found = target_set - set(found.keys())
+        if not_found:
+            self.logger.warning(
+                'Không tìm thấy các folder sau trong test set: {}'.format(sorted(not_found))
+            )
+        # In kết quả
+        sep = '=' * 70
+        print('\n' + sep)
+        print(f'  KẾT QUẢ DỊCH THEO FOLDER ID  —  {len(found)} mẫu')
+        print(sep)
+        for i, fid in enumerate(folder_ids):
+            if fid not in found:
+                print(f'\n[Mẫu {i + 1}]  Folder: {fid}')
+                print('  *** Không tìm thấy trong test set ***')
+                continue
+            gt, pred = found[fid]
+            print(f'\n[Mẫu {i + 1}]  Folder: {fid}')
+            print(f'  GROUND TRUTH : {gt}')
+            print(f'  SINH RA      : {pred}')
+        print('\n' + sep + '\n')
+        return {fid: found[fid] for fid in folder_ids if fid in found}
+    def translate_samples(self, n=None, indices=None):
+        """
+        Dịch một số mẫu từ test set và in kết quả ra màn hình.
+        Args:
+            n (int, optional): Số mẫu cần dịch (lấy từ đầu dataset).
+                               Nếu không truyền thì dùng ``indices``.
+            indices (list[int], optional): Danh sách index cụ thể trong test set.
+                               Ưu tiên hơn ``n`` nếu cả hai đều được truyền.
+        Cách dùng:
+            tester.translate_samples(n=5)           # dịch 5 mẫu đầu
+            tester.translate_samples(indices=[0, 3, 7])  # dịch các mẫu theo index
+        """
+        self.logger.info('=== Chế độ dịch mẫu (translate_samples) ===')
+        self.model.eval()
+        model_core = self._get_model()
+        # Tập hợp tất cả batch rồi lọc theo yêu cầu
+        all_images_id, all_reports, all_gts = [], [], []
+        global_idx = 0
+        target_set = set(indices) if indices is not None else None
+        with torch.no_grad():
+            for batch_idx, (images_id, images, reports_ids, reports_masks) in enumerate(self.test_dataloader):
+                batch_sz = images.size(0)
+                batch_indices = list(range(global_idx, global_idx + batch_sz))
+                # Xác định các sample nào trong batch này cần lấy
+                if target_set is not None:
+                    local_mask = [i for i, gi in enumerate(batch_indices) if gi in target_set]
+                elif n is not None:
+                    local_mask = [i for i, gi in enumerate(batch_indices) if gi < n]
+                else:
+                    local_mask = list(range(batch_sz))
+                if not local_mask:
+                    global_idx += batch_sz
+                    # Dừng sớm nếu đã thu thập đủ
+                    if target_set is None and n is not None and global_idx >= n:
+                        break
+                    continue
+                sel_images   = images[local_mask].to(self.device, non_blocking=True)
+                sel_ids      = reports_ids[local_mask].to(self.device, non_blocking=True)
+                output, _ = self.model(sel_images, mode='sample')
+                reports   = model_core.tokenizer.decode_batch(output.cpu().numpy())
+                gts       = model_core.tokenizer.decode_batch(sel_ids[:, 1:].cpu().numpy())
+                for li, gi in enumerate(local_mask):
+                    all_images_id.append(images_id[gi])
+                    all_reports.append(reports[li])
+                    all_gts.append(gts[li])
+                global_idx += batch_sz
+                # Dừng sớm khi đã đủ mẫu
+                collected = len(all_reports)
+                if target_set is None and n is not None and collected >= n:
+                    break
+                if target_set is not None and collected >= len(target_set):
+                    break
+        # In kết quả
+        sep = '=' * 70
+        print('\n' + sep)
+        print(f'  KẾT QUẢ DỊCH MẪU  —  {len(all_reports)} mẫu')
+        print(sep)
+        for i, (img_id, gt, pred) in enumerate(zip(all_images_id, all_gts, all_reports)):
+            print(f'\n[Mẫu {i + 1}]  ID ảnh: {img_id}')
+            print(f'  GROUND TRUTH : {gt}')
+            print(f'  SINH RA      : {pred}')
+        print('\n' + sep + '\n')
+        return list(zip(all_images_id, all_gts, all_reports))
+
 
     def plot(self):
         assert self.args.batch_size == 1 and self.args.beam_size == 1
