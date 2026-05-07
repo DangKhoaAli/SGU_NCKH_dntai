@@ -12,17 +12,17 @@ RESUME_PATH="${RESUME_PATH:-}"
 # đọc DATASET_PATH từ environment (set trên kaggle), nếu không có thì dùng local path
 DATASET_PATH="${DATASET_PATH:-data/iu_xray}"
 N_GPU="${N_GPU:-2}"
-BATCH_SIZE="${BATCH_SIZE:-16}"
+BATCH_SIZE="${BATCH_SIZE:-32}"
 NUM_WORKERS="${NUM_WORKERS:-4}"
-ACCUM_STEPS="${ACCUM_STEPS:-2}"
+ACCUM_STEPS="${ACCUM_STEPS:-1}"
 USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
 IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
-USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-true}"
+USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-false}"
 USE_REGION_PROMPTS="${USE_REGION_PROMPTS:-false}"
 NUM_REGION_PROMPTS="${NUM_REGION_PROMPTS:-8}"
-VISUAL_EXTRACTOR="${VISUAL_EXTRACTOR:-resnet101_swin_t}"
+VISUAL_EXTRACTOR="${VISUAL_EXTRACTOR:-resnet101}"
 VISUAL_FUSION="${VISUAL_FUSION:-gated}"
-D_VF="${D_VF:-768}"
+D_VF="${D_VF:-2048}"
 
 # Giam memory fragmentation tren CUDA
 export PYTORCH_ALLOC_CONF=expandable_segments:True
