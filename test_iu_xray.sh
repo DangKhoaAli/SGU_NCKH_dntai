@@ -20,9 +20,12 @@ DEMO_FOLDER_IDS="${DEMO_FOLDER_IDS:-}"
 DEMO_N="${DEMO_N:-}"
 DEMO_INDICES="${DEMO_INDICES:-}"
 MODEL_NAME="${MODEL_NAME:-}"
+DATASET_PATH="${DATASET_PATH:-data/iu_xray}"
+
+
 python main_test.py \
-    --image_dir data/iu_xray/images/ \
-    --ann_path data/iu_xray/annotation.json \
+    --image_dir "$DATASET_PATH/iu_xray/images/" \
+    --ann_path "$DATASET_PATH/iu_xray/annotation.json" \
     --dataset_name iu_xray \
     --use_iu_xray_view_filter "$USE_IU_XRAY_VIEW_FILTER" \
     --iu_xray_view_filter_csv "$IU_XRAY_VIEW_FILTER_CSV" \
