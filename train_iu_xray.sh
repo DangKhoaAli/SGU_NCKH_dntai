@@ -42,7 +42,7 @@ python main_train.py\
     --step_size 10 \
     --gamma 0.8 \
     --num_layers 3 \
-    --swin_num_layers "${SWIN_NUM_LAYERS:-4}" \
+    --swin_num_layers "${SWIN_NUM_LAYERS:-3}" \
     --decoder_num_layers "${DECODER_NUM_LAYERS:-3}" \
     --early_stop 50 \
     --topk 32 \
