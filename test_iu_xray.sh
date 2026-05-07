@@ -19,7 +19,7 @@ IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooc
 DEMO_FOLDER_IDS="${DEMO_FOLDER_IDS:-}"
 DEMO_N="${DEMO_N:-}"
 DEMO_INDICES="${DEMO_INDICES:-}"
-
+MODEL_NAME="${MODEL_NAME:-}"
 python main_test.py \
     --image_dir data/iu_xray/images/ \
     --ann_path data/iu_xray/annotation.json \
@@ -46,7 +46,7 @@ python main_test.py \
     --beam_size 3 \
     --save_dir results/iu_xray/ \
     --log_period 50 \
-    --load data/model_best.pth \
+    --load "$MODEL_NAME" \
     ${DEMO_FOLDER_IDS:+--demo_folder_ids $DEMO_FOLDER_IDS} \
     ${DEMO_N:+--demo_n $DEMO_N} \
     ${DEMO_INDICES:+--demo_indices $DEMO_INDICES}
