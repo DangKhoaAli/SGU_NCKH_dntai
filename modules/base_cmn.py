@@ -360,6 +360,11 @@ class BaseCMN(AttModel):
         self.num_heads = args.num_heads
         self.dropout = args.dropout
         self.topk = args.topk
+        self.use_view_type_embedding = (
+            getattr(args, 'use_view_type_embedding', False)
+            and getattr(args, 'dataset_name', None) == 'iu_xray'
+        )
+        self.view_type_embedding = nn.Embedding(2, self.d_model) if self.use_view_type_embedding else None
 
         tgt_vocab = self.vocab_size + 1
 
@@ -381,6 +386,22 @@ class BaseCMN(AttModel):
             self.memory_matrix.size(1)
         )
 
+    def _add_view_type_embedding(self, att_feats):
+        if not self.use_view_type_embedding:
+            return att_feats
+
+        batch_size, num_patches, _ = att_feats.shape
+        if num_patches % 2 != 0:
+            raise RuntimeError(
+                f'IU X-Ray view type embedding expects an even number of patches, got {num_patches}.'
+            )
+
+        half = num_patches // 2
+        view_ids = att_feats.new_empty((batch_size, num_patches), dtype=torch.long)
+        view_ids[:, :half] = 0
+        view_ids[:, half:] = 1
+        return att_feats + self.view_type_embedding(view_ids)
+
     def _prepare_feature(self, fc_feats, att_feats, att_masks):
         att_feats, seq, att_masks, seq_mask = self._prepare_feature_forward(fc_feats, att_feats, att_masks)
         memory = self.model.encode(att_feats, att_masks)
@@ -390,6 +411,7 @@ class BaseCMN(AttModel):
     def _prepare_feature_forward(self, fc_feats, att_feats, att_masks=None, seq=None):
         att_feats, att_masks = self.clip_att(att_feats, att_masks)
         att_feats = pack_wrapper(self.att_embed, att_feats, att_masks)
+        att_feats = self._add_view_type_embedding(att_feats)
 
         if att_masks is None:
             att_masks = att_feats.new_ones(att_feats.shape[:2], dtype=torch.long) # tạo kh có att_mask thì tạo mask là full 1
