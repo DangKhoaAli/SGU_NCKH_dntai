@@ -3,6 +3,8 @@ NUM_WORKERS="${NUM_WORKERS:-0}"
 BATCH_SIZE="${BATCH_SIZE:-16}"
 USE_IU_XRAY_VIEW_FILTER="${USE_IU_XRAY_VIEW_FILTER:-true}"
 IU_XRAY_VIEW_FILTER_CSV="${IU_XRAY_VIEW_FILTER_CSV:-/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv}"
+USE_VIEW_TYPE_EMBEDDING="${USE_VIEW_TYPE_EMBEDDING:-false}"
+LOAD_PATH="${LOAD_PATH:-data/model_best.pth}"
 
 python main_test.py \
     --image_dir data/iu_xray/images/ \
@@ -16,13 +18,14 @@ python main_test.py \
     --n_gpu "$N_GPU" \
     --batch_size "$BATCH_SIZE" \
     --num_workers "$NUM_WORKERS" \
-    --lr_ve 1e-4 \
+    --lr_ve 5e-5 \
     --lr_ed 5e-4 \
     --step_size 10 \
     --gamma 0.8 \
     --num_layers 3 \
-    --swin_num_layers "${SWIN_NUM_LAYERS:-5}" \
+    --swin_num_layers "${SWIN_NUM_LAYERS:-3}" \
     --decoder_num_layers "${DECODER_NUM_LAYERS:-3}" \
+    --use_view_type_embedding "$USE_VIEW_TYPE_EMBEDDING" \
     --topk 32 \
     --cmm_size 2048 \
     --cmm_dim 512 \
@@ -30,4 +33,4 @@ python main_test.py \
     --beam_size 3 \
     --save_dir results/iu_xray/ \
     --log_period 50 \
-    --load data/model_best.pth
+    --load "$LOAD_PATH"

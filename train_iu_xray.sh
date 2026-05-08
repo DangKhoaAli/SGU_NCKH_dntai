@@ -38,12 +38,12 @@ python main_train.py\
     --use_amp \
     --optim AdamW \
     --lr_scheduler StepLR \
-    --lr_ve 1e-4 \
+    --lr_ve 5e-5 \
     --lr_ed 5e-4 \
     --step_size 10 \
     --gamma 0.8 \
     --num_layers 3 \
-    --swin_num_layers "${SWIN_NUM_LAYERS:-4}" \
+    --swin_num_layers "${SWIN_NUM_LAYERS:-3}" \
     --decoder_num_layers "${DECODER_NUM_LAYERS:-3}" \
     --use_view_type_embedding "$USE_VIEW_TYPE_EMBEDDING" \
     --early_stop 50 \
