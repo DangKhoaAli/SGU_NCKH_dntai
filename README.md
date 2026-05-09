@@ -1,6 +1,6 @@
-# R2GenCMN
+# R2Gen
 
-This is the implementation of [Cross-modal Memory Networks for Radiology Report Generation](https://aclanthology.org/2021.acl-long.459/) at ACL-IJCNLP-2021.
+This is the implementation of [Generating Radiology Reports via Memory-driven Transformer](https://arxiv.org/pdf/2010.16056.pdf) at EMNLP-2020.
 
 ## News
 - The codebase is kind of old so we refer the readers to this awesome project ([ViLMedic](https://github.com/jbdel/vilmedic)). You can also check our newly released [PTUnifier](https://github.com/zhjohnchan/ptunifier), which can perform various medical image-text tasks like radiology report generation.
@@ -8,17 +8,17 @@ This is the implementation of [Cross-modal Memory Networks for Radiology Report 
 
 ## Citations
 
-If you use or extend our work, please cite our paper at ACL-IJCNLP-2021.
+If you use or extend our work, please cite our paper at EMNLP-2020.
 ```
-@inproceedings{chen-acl-2021-r2gencmn,
+@inproceedings{chen-emnlp-2020-r2gen,
     title = "Generating Radiology Reports via Memory-driven Transformer",
     author = "Chen, Zhihong and
-      Shen, Yaling  and
-      Song, Yan and
+      Song, Yan  and
+      Chang, Tsung-Hui and
       Wan, Xiang",
-    booktitle = "Proceedings of the Joint Conference of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing",
-    month = aug,
-    year = "2021",
+    booktitle = "Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing",
+    month = nov,
+    year = "2020",
 }
 ```
 
@@ -28,8 +28,9 @@ If you use or extend our work, please cite our paper at ACL-IJCNLP-2021.
 - `torchvision==0.8.2`
 - `opencv-python==4.4.0.42`
 
-## Download R2GenCMN
-You can download the models we trained for each dataset from [here](https://github.com/zhjohnchan/R2GenCMN/blob/main/data/r2gencmn.md).
+
+## Download R2Gen
+You can download the models we trained for each dataset from [here](https://github.com/zhjohnchan/R2Gen/blob/main/data/r2gen.md).
 
 ## Datasets
 We use two datasets (IU X-Ray and MIMIC-CXR) in our paper.

@@ -1,43 +1,23 @@
-import argparse
-
-import numpy as np
 import torch
-
-from models.models import BaseCMNModel
-from modules.dataloaders import R2DataLoader
-from modules.loss import compute_loss
-from modules.metrics import compute_scores
+import argparse
+import numpy as np
 from modules.tokenizers import Tokenizer
+from modules.dataloaders import R2DataLoader
+from modules.metrics import compute_scores
 from modules.tester import Tester
-
-
-def str2bool(value):
-    if isinstance(value, bool):
-        return value
-    value = value.lower()
-    if value in ('true', '1', 'yes', 'y', 'on'):
-        return True
-    if value in ('false', '0', 'no', 'n', 'off'):
-        return False
-    raise argparse.ArgumentTypeError('Expected true or false.')
+from modules.loss import compute_loss
+from models.r2gen import R2GenModel
 
 
 def parse_agrs():
     parser = argparse.ArgumentParser()
 
     # Data input settings
-    parser.add_argument('--image_dir', type=str, default='data/iu_xray/images/',
-                        help='the path to the directory containing the data.')
-    parser.add_argument('--ann_path', type=str, default='data/iu_xray/annotation.json',
-                        help='the path to the directory containing the data.')
-    parser.add_argument('--iu_xray_view_filter_csv', type=str, default='/kaggle/input/datasets/quooccuongwf/dataset-errors/iu_xray_select_2views_by_cosine.csv',
-                        help='CSV manifest used to keep 2 IU X-Ray views and drop extra views.')
-    parser.add_argument('--use_iu_xray_view_filter', type=str2bool, default=True,
-                        help='Whether to drop extra IU X-Ray views using iu_xray_view_filter_csv.')
+    parser.add_argument('--image_dir', type=str, default='data/iu_xray/images/', help='the path to the directory containing the data.')
+    parser.add_argument('--ann_path', type=str, default='data/iu_xray/annotation.json', help='the path to the directory containing the data.')
 
     # Data loader settings
-    parser.add_argument('--dataset_name', type=str, default='iu_xray', choices=['iu_xray', 'mimic_cxr'],
-                        help='the dataset to be used.')
+    parser.add_argument('--dataset_name', type=str, default='iu_xray', choices=['iu_xray', 'mimic_cxr'], help='the dataset to be used.')
     parser.add_argument('--max_seq_length', type=int, default=60, help='the maximum sequence length of the reports.')
     parser.add_argument('--threshold', type=int, default=3, help='the cut off frequency for the words.')
     parser.add_argument('--num_workers', type=int, default=2, help='the number of workers for dataloader.')
@@ -52,12 +32,7 @@ def parse_agrs():
     parser.add_argument('--d_ff', type=int, default=512, help='the dimension of FFN.')
     parser.add_argument('--d_vf', type=int, default=2048, help='the dimension of the patch features.')
     parser.add_argument('--num_heads', type=int, default=8, help='the number of heads in Transformer.')
-    parser.add_argument('--num_layers', type=int, default=3,
-                        help='fallback number of layers for both Swin encoder and decoder.')
-    parser.add_argument('--swin_num_layers', type=int, default=None,
-                        help='the number of layers of Swin visual encoder; defaults to num_layers.')
-    parser.add_argument('--decoder_num_layers', type=int, default=None,
-                        help='the number of layers of Transformer decoder; defaults to num_layers.')
+    parser.add_argument('--num_layers', type=int, default=3, help='the number of layers of Transformer.')
     parser.add_argument('--dropout', type=float, default=0.1, help='the dropout rate of Transformer.')
     parser.add_argument('--logit_layers', type=int, default=1, help='the number of the logit layer.')
     parser.add_argument('--bos_idx', type=int, default=0, help='the index of <bos>.')
@@ -65,11 +40,10 @@ def parse_agrs():
     parser.add_argument('--pad_idx', type=int, default=0, help='the index of <pad>.')
     parser.add_argument('--use_bn', type=int, default=0, help='whether to use batch normalization.')
     parser.add_argument('--drop_prob_lm', type=float, default=0.5, help='the dropout rate of the output layer.')
-
-    # for Cross-modal Memory
-    parser.add_argument('--topk', type=int, default=32, help='the number of k.')
-    parser.add_argument('--cmm_size', type=int, default=2048, help='the numebr of cmm size.')
-    parser.add_argument('--cmm_dim', type=int, default=512, help='the dimension of cmm dimension.')
+    # for Relational Memory
+    parser.add_argument('--rm_num_slots', type=int, default=3, help='the number of memory slots.')
+    parser.add_argument('--rm_num_heads', type=int, default=8, help='the numebr of heads in rm.')
+    parser.add_argument('--rm_d_model', type=int, default=512, help='the dimension of rm.')
 
     # Sample related
     parser.add_argument('--sample_method', type=str, default='beam_search', help='the sample methods to sample a report.')
@@ -85,9 +59,8 @@ def parse_agrs():
     parser.add_argument('--n_gpu', type=int, default=1, help='the number of gpus to be used.')
     parser.add_argument('--epochs', type=int, default=100, help='the number of training epochs.')
     parser.add_argument('--save_dir', type=str, default='results/iu_xray', help='the patch to save the models.')
-    parser.add_argument('--record_dir', type=str, default='records/', help='the patch to save the results of experiments.')
-    parser.add_argument('--log_period', type=int, default=1000, help='the logging interval (in batches).')
-    parser.add_argument('--save_period', type=int, default=1, help='the saving period (in epochs).')
+    parser.add_argument('--record_dir', type=str, default='records/', help='the patch to save the results of experiments')
+    parser.add_argument('--save_period', type=int, default=1, help='the saving period.')
     parser.add_argument('--monitor_mode', type=str, default='max', choices=['min', 'max'], help='whether to max or min the metric.')
     parser.add_argument('--monitor_metric', type=str, default='BLEU_4', help='the metric to be monitored.')
     parser.add_argument('--early_stop', type=int, default=50, help='the patience of training.')
@@ -95,13 +68,9 @@ def parse_agrs():
     # Optimization
     parser.add_argument('--optim', type=str, default='Adam', help='the type of the optimizer.')
     parser.add_argument('--lr_ve', type=float, default=5e-5, help='the learning rate for the visual extractor.')
-    parser.add_argument('--lr_ed', type=float, default=7e-4, help='the learning rate for the remaining parameters.')
+    parser.add_argument('--lr_ed', type=float, default=1e-4, help='the learning rate for the remaining parameters.')
     parser.add_argument('--weight_decay', type=float, default=5e-5, help='the weight decay.')
-    parser.add_argument('--adam_betas', type=tuple, default=(0.9, 0.98), help='the weight decay.')
-    parser.add_argument('--adam_eps', type=float, default=1e-9, help='the weight decay.')
     parser.add_argument('--amsgrad', type=bool, default=True, help='.')
-    parser.add_argument('--noamopt_warmup', type=int, default=5000, help='.')
-    parser.add_argument('--noamopt_factor', type=int, default=1, help='.')
 
     # Learning Rate Scheduler
     parser.add_argument('--lr_scheduler', type=str, default='StepLR', help='the type of the learning rate scheduler.')
@@ -111,7 +80,7 @@ def parse_agrs():
     # Others
     parser.add_argument('--seed', type=int, default=9233, help='.')
     parser.add_argument('--resume', type=str, help='whether to resume the training from existing checkpoints.')
-    parser.add_argument('--load', type=str, help='whether to load the pre-trained model.')
+    parser.add_argument('--load', type=str, help='whether to load a pre-trained model.')
 
     args = parser.parse_args()
     return args
@@ -134,7 +103,7 @@ def main():
     test_dataloader = R2DataLoader(args, tokenizer, split='test', shuffle=False)
 
     # build model architecture
-    model = BaseCMNModel(args, tokenizer)
+    model = R2GenModel(args, tokenizer)
 
     # get function handles of loss and metrics
     criterion = compute_loss

@@ -51,15 +51,3 @@ def compute_mlc(gt, pred, label_set):
     res_mlc['PRECISION_MICRO'] = precision_score(gt, pred, average="micro")
 
     return res_mlc
-
-
-class MetricWrapper(object):
-    def __init__(self, label_set):
-        self.label_set = label_set
-
-    def __call__(self, gts, res, gts_mlc, res_mlc):
-        eval_res = compute_scores(gts, res)
-        eval_res_mlc = compute_mlc(gts_mlc, res_mlc, self.label_set)
-
-        eval_res.update(**eval_res_mlc)
-        return eval_res

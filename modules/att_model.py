@@ -13,11 +13,11 @@ from modules.caption_model import CaptionModel
 
 def sort_pack_padded_sequence(input, lengths):
     sorted_lengths, indices = torch.sort(lengths, descending=True)
-    tmp = pack_padded_sequence(input[indices], sorted_lengths.cpu(), batch_first=True)
+    tmp = pack_padded_sequence(input[indices], sorted_lengths, batch_first=True)
     inv_ix = indices.clone()
     inv_ix[indices] = torch.arange(0, len(indices)).type_as(inv_ix)
     return tmp, inv_ix
- # thằng này dùng để 
+
 
 def pad_unsort_packed_sequence(input, inv_ix):
     tmp, _ = pad_packed_sequence(input, batch_first=True)
@@ -27,7 +27,7 @@ def pad_unsort_packed_sequence(input, inv_ix):
 
 def pack_wrapper(module, att_feats, att_masks):
     if att_masks is not None:
-        packed, inv_ix = sort_pack_padded_sequence(att_feats, att_masks.data.long().sum(1)) # 
+        packed, inv_ix = sort_pack_padded_sequence(att_feats, att_masks.data.long().sum(1))
         return pad_unsort_packed_sequence(PackedSequence(module(packed[0]), packed[1]), inv_ix)
     else:
         return module(att_feats)
@@ -62,12 +62,12 @@ class AttModel(CaptionModel):
                  nn.Dropout(self.drop_prob_lm)) +
                 ((nn.BatchNorm1d(self.input_encoding_size),) if self.use_bn == 2 else ())))
 
-    def clip_att(self, att_feats, att_masks): # này dùng để 
+    def clip_att(self, att_feats, att_masks):
         # Clip the length of att_masks and att_feats to the maximum length
         if att_masks is not None:
-            max_len = att_masks.data.long().sum(1).max() # tính tổng độ dài của mask
-            att_feats = att_feats[:, :max_len].contiguous() # áp đặt dộ dài đó lên att_feats
-            att_masks = att_masks[:, :max_len].contiguous() # cập nhật lại mask
+            max_len = att_masks.data.long().sum(1).max()
+            att_feats = att_feats[:, :max_len].contiguous()
+            att_masks = att_masks[:, :max_len].contiguous()
         return att_feats, att_masks
 
     def _prepare_feature(self, fc_feats, att_feats, att_masks):
@@ -135,10 +135,8 @@ class AttModel(CaptionModel):
         # return the samples and their log likelihoods
         return seq, seqLogprobs
 
-    def _sample(self, fc_feats, att_feats, att_masks=None, update_opts={}):
+    def _sample(self, fc_feats, att_feats, att_masks=None):
         opt = self.args.__dict__
-        opt.update(**update_opts)
-
         sample_method = opt.get('sample_method', 'greedy')
         beam_size = opt.get('beam_size', 1)
         temperature = opt.get('temperature', 1.0)
@@ -196,7 +194,7 @@ class AttModel(CaptionModel):
                             trigrams[i][prev_two] = [current]
                 # Block used trigrams at next step
                 prev_two_batch = seq[:, t - 2:t]
-                mask = logprobs.new_zeros(logprobs.size())  # batch_size x vocab_size
+                mask = torch.zeros(logprobs.size(), requires_grad=False).cuda()  # batch_size x vocab_size
                 for i in range(batch_size):
                     prev_two = (prev_two_batch[i][0].item(), prev_two_batch[i][1].item())
                     if prev_two in trigrams[i]:
@@ -293,7 +291,7 @@ class AttModel(CaptionModel):
                                     trigrams[i][prev_two] = [current]
                         # Block used trigrams at next step
                         prev_two_batch = seq[:, t - 2:t]
-                        mask = logprobs.new_zeros(logprobs.size())  # batch_size x vocab_size
+                        mask = torch.zeros(logprobs.size(), requires_grad=False).cuda()  # batch_size x vocab_size
                         for i in range(batch_size):
                             prev_two = (prev_two_batch[i][0].item(), prev_two_batch[i][1].item())
                             if prev_two in trigrams[i]:
